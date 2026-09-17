@@ -83,4 +83,5 @@ behind one nginx gateway — split by domain, not by table (see
 | `web/` | React web app |
 | `scripts/` | Provenance guard, health-gated rolling-update script |
 
-This repository is private and contains only code written by its owner.
+This repository is public for portfolio purposes. All rights reserved — no
+license is granted to use, copy, or modify this code.
