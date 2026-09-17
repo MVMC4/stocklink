@@ -1,0 +1,20 @@
+# StockLink API scrape config. `__API_TARGET__` is substituted at container
+# start from $STOCKLINK_API_TARGET (see docker-compose.observability.yml).
+global:
+  scrape_interval: 15s
+  scrape_timeout: 10s
+  external_labels:
+    service: stocklink-api
+
+scrape_configs:
+  - job_name: stocklink-api
+    metrics_path: /metrics
+    scheme: http
+    static_configs:
+      - targets: ["__API_TARGET__"]
+        labels:
+          component: api
+
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]

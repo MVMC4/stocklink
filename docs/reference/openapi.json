@@ -1,0 +1,953 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "StockLink API",
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/v1/auth/logout": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "operationId": "logout",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LogoutReq"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        }
+      }
+    },
+    "/v1/auth/otp/request": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "operationId": "request_otp",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RequestOtpReq"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RequestOtpRes"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/auth/otp/verify": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "operationId": "verify_otp",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VerifyOtpReq"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TokenPairRes"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/auth/refresh": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "operationId": "refresh",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RefreshReq"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TokenPairRes"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/onboarding/carriers": {
+      "post": {
+        "tags": [
+          "onboarding"
+        ],
+        "operationId": "register_carrier",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterCarrierReq"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CarrierRes"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/onboarding/stores": {
+      "post": {
+        "tags": [
+          "onboarding"
+        ],
+        "operationId": "register_store",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterStoreReq"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StoreRes"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/onboarding/warehouses": {
+      "post": {
+        "tags": [
+          "onboarding"
+        ],
+        "operationId": "register_warehouse",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterWarehouseReq"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WarehouseRes"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/cart/items": {
+      "post": {
+        "tags": [
+          "cart"
+        ],
+        "operationId": "add_to_cart",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddToCartReq"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CartItemRes"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/catalog": {
+      "get": {
+        "tags": [
+          "catalog"
+        ],
+        "operationId": "browse_catalog",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CatalogItemRes"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/orders/checkout": {
+      "post": {
+        "tags": [
+          "orders"
+        ],
+        "operationId": "checkout",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CheckoutReq"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/OrderRes"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/warehouses/{warehouse_id}/catalog": {
+      "post": {
+        "tags": [
+          "catalog"
+        ],
+        "operationId": "publish_item",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PublishCatalogItemReq"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogItemRes"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/warehouses/{warehouse_id}/orders/{order_id}/status": {
+      "patch": {
+        "tags": [
+          "orders"
+        ],
+        "operationId": "advance_order_status",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdvanceOrderStatusReq"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrderRes"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/media/presign": {
+      "post": {
+        "tags": [
+          "media"
+        ],
+        "operationId": "presign_upload",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PresignUploadReq"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PresignUploadRes"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "CarrierRes": {
+        "type": "object",
+        "required": [
+          "id",
+          "name"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          }
+        }
+      },
+      "ComponentHealth": {
+        "type": "object",
+        "required": [
+          "up"
+        ],
+        "properties": {
+          "up": {
+            "type": "boolean"
+          }
+        }
+      },
+      "HealthResponse": {
+        "type": "object",
+        "required": [
+          "status",
+          "version",
+          "database",
+          "redis"
+        ],
+        "properties": {
+          "status": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          },
+          "database": {
+            "$ref": "#/components/schemas/ComponentHealth"
+          },
+          "redis": {
+            "$ref": "#/components/schemas/ComponentHealth"
+          }
+        }
+      },
+      "LogoutReq": {
+        "type": "object",
+        "required": [
+          "refresh_token"
+        ],
+        "properties": {
+          "refresh_token": {
+            "type": "string"
+          }
+        }
+      },
+      "RefreshReq": {
+        "type": "object",
+        "required": [
+          "refresh_token"
+        ],
+        "properties": {
+          "refresh_token": {
+            "type": "string"
+          }
+        }
+      },
+      "RegisterCarrierReq": {
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          }
+        }
+      },
+      "RegisterStoreReq": {
+        "type": "object",
+        "required": [
+          "name",
+          "region"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "region": {
+            "type": "string"
+          },
+          "address": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "RegisterWarehouseReq": {
+        "type": "object",
+        "required": [
+          "name",
+          "region"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "region": {
+            "type": "string"
+          },
+          "address": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "RequestOtpReq": {
+        "type": "object",
+        "required": [
+          "channel",
+          "identifier"
+        ],
+        "properties": {
+          "channel": {
+            "type": "string",
+            "description": "`email` or `phone`."
+          },
+          "identifier": {
+            "type": "string"
+          }
+        }
+      },
+      "RequestOtpRes": {
+        "type": "object",
+        "required": [
+          "expires_in_secs"
+        ],
+        "properties": {
+          "expires_in_secs": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "dev_code": {
+            "type": "string",
+            "description": "Present only in development (`OTP_DEV_ECHO_ENABLED=true`), never in\nstaging/production — config refuses to start with it enabled there.",
+            "nullable": true
+          }
+        }
+      },
+      "StoreRes": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "region"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "region": {
+            "type": "string"
+          },
+          "address": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "TokenPairRes": {
+        "type": "object",
+        "required": [
+          "account_id",
+          "access_token",
+          "refresh_token",
+          "roles"
+        ],
+        "properties": {
+          "account_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "access_token": {
+            "type": "string"
+          },
+          "refresh_token": {
+            "type": "string"
+          },
+          "roles": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "VerifyOtpReq": {
+        "type": "object",
+        "required": [
+          "channel",
+          "identifier",
+          "code"
+        ],
+        "properties": {
+          "channel": {
+            "type": "string"
+          },
+          "identifier": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string"
+          }
+        }
+      },
+      "WarehouseRes": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "region"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "region": {
+            "type": "string"
+          },
+          "address": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "AddToCartReq": {
+        "type": "object",
+        "required": [
+          "catalog_item_id",
+          "tier",
+          "quantity"
+        ],
+        "properties": {
+          "catalog_item_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "tier": {
+            "type": "string"
+          },
+          "quantity": {
+            "type": "number",
+            "format": "double",
+            "description": "Server-validated as `> 0` in `CatalogService::add_to_cart`."
+          }
+        }
+      },
+      "AdvanceOrderStatusReq": {
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "properties": {
+          "status": {
+            "type": "string"
+          }
+        }
+      },
+      "CartItemRes": {
+        "type": "object",
+        "required": [
+          "id",
+          "catalog_item_id",
+          "tier",
+          "quantity"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "catalog_item_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "tier": {
+            "type": "string"
+          },
+          "quantity": {
+            "type": "number",
+            "format": "double"
+          }
+        }
+      },
+      "CatalogItemRes": {
+        "type": "object",
+        "required": [
+          "id",
+          "warehouse_id",
+          "sku",
+          "name",
+          "currency",
+          "unit_label",
+          "unit_price",
+          "stock_qty_units",
+          "active"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "warehouse_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "sku": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string",
+            "nullable": true
+          },
+          "currency": {
+            "type": "string"
+          },
+          "unit_label": {
+            "type": "string"
+          },
+          "unit_price": {
+            "type": "number",
+            "format": "double"
+          },
+          "case_size": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "case_price": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          },
+          "pallet_size": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "pallet_price": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          },
+          "stock_qty_units": {
+            "type": "number",
+            "format": "double"
+          },
+          "active": {
+            "type": "boolean"
+          }
+        }
+      },
+      "CheckoutReq": {
+        "type": "object",
+        "properties": {
+          "idempotency_key": {
+            "type": "string",
+            "description": "Client-generated idempotency key — retrying the same checkout with\nthe same key never creates duplicate orders.",
+            "nullable": true
+          }
+        }
+      },
+      "OrderRes": {
+        "type": "object",
+        "required": [
+          "id",
+          "store_id",
+          "warehouse_id",
+          "status",
+          "currency",
+          "subtotal",
+          "total",
+          "placed_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "store_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "warehouse_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "type": "string"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "subtotal": {
+            "type": "number",
+            "format": "double"
+          },
+          "total": {
+            "type": "number",
+            "format": "double"
+          },
+          "placed_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "PublishCatalogItemReq": {
+        "type": "object",
+        "required": [
+          "sku",
+          "name",
+          "currency",
+          "unit_label",
+          "unit_price",
+          "stock_qty_units"
+        ],
+        "properties": {
+          "sku": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string",
+            "nullable": true
+          },
+          "currency": {
+            "type": "string"
+          },
+          "unit_label": {
+            "type": "string"
+          },
+          "unit_price": {
+            "type": "number",
+            "format": "double",
+            "description": "Server-validated for non-negativity in `CatalogService::publish_item`\n(rust_decimal doesn't implement `validator`'s numeric-range trait)."
+          },
+          "case_size": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "case_price": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          },
+          "pallet_size": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "pallet_price": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          },
+          "stock_qty_units": {
+            "type": "number",
+            "format": "double"
+          }
+        }
+      },
+      "NotificationRes": {
+        "type": "object",
+        "required": [
+          "id",
+          "kind",
+          "title",
+          "body",
+          "created_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "body": {
+            "type": "string"
+          },
+          "read_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "PresignUploadReq": {
+        "type": "object",
+        "required": [
+          "kind",
+          "content_type"
+        ],
+        "properties": {
+          "kind": {
+            "type": "string"
+          },
+          "content_type": {
+            "type": "string"
+          }
+        }
+      },
+      "PresignUploadRes": {
+        "type": "object",
+        "required": [
+          "media_asset_id",
+          "upload_url",
+          "public_url"
+        ],
+        "properties": {
+          "media_asset_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "upload_url": {
+            "type": "string"
+          },
+          "public_url": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}

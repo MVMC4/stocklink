@@ -1,0 +1,10 @@
+.git
+.github
+.env
+.env.*
+!.env.example
+target
+tmp
+.DS_Store
+*.log
+scripts/verify_sync_runtime.sh

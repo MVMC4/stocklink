@@ -1,0 +1,12 @@
+# Line endings: store text as LF and check it out as LF on every platform,
+# overriding core.autocrlf. Without this a Windows checkout (autocrlf=true)
+# gets CRLF, and any tool that writes LF into such a file leaves it with mixed
+# endings, which `prettier --check` (endOfLine: auto) reports as unformatted
+# even though the committed content is identical. Linux CI never sees CRLF, so
+# the two platforms disagreed. Binary files are detected by `text=auto` and are
+# left untouched.
+* text=auto eol=lf
+
+# cmd.exe misparses labels and `goto` in batch files with LF endings.
+*.cmd text eol=crlf
+*.bat text eol=crlf

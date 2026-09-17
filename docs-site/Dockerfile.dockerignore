@@ -1,0 +1,13 @@
+# BuildKit reads this file for docs-site/Dockerfile. Compose builds it with the
+# repository root as context, so docs-site/.dockerignore does not apply.
+# Send only the docs site and the Markdown it syncs; never host dependencies,
+# build output, other workspaces, secrets or git history.
+*
+!docs-site/
+!docs/
+docs-site/node_modules
+docs-site/.next
+docs-site/.source
+docs-site/out
+docs-site/**/*.log
+docs-site/.env*

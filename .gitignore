@@ -1,0 +1,49 @@
+# Root ignores for the StockLink monorepo. Sub-projects (backend/, docs-site/)
+# carry their own .gitignore for tool-specific artefacts; these cover the
+# whole tree and the top-level workspace.
+
+# Rust build artefacts
+target/
+**/target/
+Cargo.lock.bak
+
+# Node
+node_modules/
+**/node_modules/
+dist/
+build/
+.next/
+.turbo/
+*.tsbuildinfo
+
+# Environment files — never commit populated env files, examples are exempt
+.env
+.env.*
+!.env.example
+!*.env.example
+*.local
+
+# Local data (databases, uploads, generated fixtures)
+/data/
+*.sqlite
+*.sqlite3
+*.db
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Docker
+*.tar

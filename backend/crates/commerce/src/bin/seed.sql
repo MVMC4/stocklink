@@ -1,0 +1,18 @@
+-- StockLink demo data — placeholder.
+--
+-- A former demo scenario, describing a different business entirely, has
+-- been removed along with the domain modules it exercised (advisory,
+-- quality grading, prices, USSD, sync, finance, wallet, and the current
+-- logistics tables; see WO-04 and docs/STATUS.md). None of it described
+-- StockLink's own business.
+--
+-- StockLink's own domain (warehouses, stores, carriers, catalogue tiers,
+-- bulk orders, settlements) does not exist in the schema yet: the fresh
+-- baseline migration lands in WO-04 and the commerce tables in WO-06. This
+-- file intentionally seeds nothing until that schema is real, rather than
+-- inserting rows into tables that do not exist and calling it done (AGENTS.md
+-- rule 4: never fake success).
+--
+-- TODO(WO-06): seed a warehouse, a store, a small catalogue and a couple of
+-- orders, clearly labelled demo-only (e.g. a `(demo)` suffix on display
+-- names, as the removed scenario did).

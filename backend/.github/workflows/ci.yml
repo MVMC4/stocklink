@@ -1,0 +1,414 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+env:
+  CARGO_TERM_COLOR: always
+  # sqlx offline mode — queries pre-compiled; no live DB in CI unless integration
+  # tests are explicitly enabled.
+  SQLX_OFFLINE: true
+
+jobs:
+  # ── Format check ────────────────────────────────────────────────────────────
+  fmt:
+    name: rustfmt
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install stable toolchain + rustfmt
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+
+      - run: cargo fmt --check
+
+  # ── Clippy lint ─────────────────────────────────────────────────────────────
+  clippy:
+    name: clippy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install stable toolchain + clippy
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Install system deps (ring, sqlx)
+        run: sudo apt-get update && sudo apt-get install -y pkg-config libssl-dev
+
+      - name: cargo clippy
+        run: cargo clippy --all-targets -- -D warnings
+
+  # ── Build & test ────────────────────────────────────────────────────────────
+  test:
+    name: build + test
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_USER: stocklink
+          POSTGRES_PASSWORD: stocklink
+          POSTGRES_DB: stocklink
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgres://stocklink:stocklink@localhost:5432/stocklink
+      REDIS_URL: redis://localhost:6379
+      JWT_ACCESS_SECRET: ci-test-secret-at-least-32-bytes-long
+      SQLX_OFFLINE: false
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install stable toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Install system deps
+        run: sudo apt-get update && sudo apt-get install -y pkg-config libssl-dev
+
+      - name: cargo build
+        run: cargo build --release
+
+      - name: cargo test
+        run: cargo test
+
+  # ── SQLx offline cache freshness ─────────────────────────────────────────────
+  #
+  # ADR-003 (docs/ARCHITECTURE.md): repositories use compile-time-checked
+  # `query!`/`query_as!` macros, verified offline in every other job via the
+  # committed `.sqlx/` cache (`SQLX_OFFLINE=true`, no live DB). This job is the
+  # one place that re-derives that cache against a real, freshly migrated
+  # Postgres and diffs it against what's committed — so a schema change that
+  # lands without a regenerated `.sqlx/` fails CI here instead of silently
+  # shipping a cache that no longer matches the schema.
+  sqlx-cache:
+    name: sqlx offline cache check
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_USER: stocklink
+          POSTGRES_PASSWORD: stocklink
+          POSTGRES_DB: stocklink
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgres://stocklink:stocklink@localhost:5432/stocklink
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install stable toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Install system deps
+        run: sudo apt-get update && sudo apt-get install -y pkg-config libssl-dev
+
+      - name: Cache sqlx-cli binary
+        id: cache-sqlx-cli
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/cargo-sqlx
+            ~/.cargo/bin/sqlx
+          key: sqlx-cli-0.7-${{ runner.os }}
+
+      - name: Install sqlx-cli
+        if: steps.cache-sqlx-cli.outputs.cache-hit != 'true'
+        run: cargo install sqlx-cli --version "^0.7" --no-default-features --features rustls,postgres
+
+      - name: Apply migrations
+        run: cargo sqlx migrate run
+
+      - name: Check .sqlx/ is up to date with the schema and queries
+        run: cargo sqlx prepare --check
+
+  # ── OpenAPI spec regression guard ────────────────────────────────────────────
+  #
+  # Cheap, dependency-free check (no DB/Redis needed): fails the build if
+  # `cargo build` succeeds but the generated OpenAPI spec doesn't — i.e. it
+  # can't serialize, is missing a route that's wired in routes/mod.rs, or is
+  # missing the shared ErrorEnvelope schema / bearerAuth security scheme. See
+  # `openapi::tests::spec_generates_serializes_and_covers_every_route` in
+  # src/openapi.rs — update its `expected_paths` list alongside any route
+  # add/remove.
+  openapi:
+    name: openapi spec
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install stable toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Install system deps
+        run: sudo apt-get update && sudo apt-get install -y pkg-config libssl-dev
+
+      - name: cargo build
+        run: cargo build
+
+      - name: Verify OpenAPI spec generates and covers every route
+        run: cargo test --bin stocklink-server openapi::tests
+
+  # ── Contract & integration tests (against a live server) ────────────────────
+  #
+  # tests/api_contract.rs and tests/integration_runtime.rs are #[ignore]d
+  # because they need a *running* API server, not just a DB — the `test` job
+  # above only exercises unit tests. This job builds the release binary, boots
+  # it against real Postgres/Redis service containers, waits for
+  # /health/ready, then runs the ignored tests with `--ignored`.
+  #
+  # phase_two_quality_finance_and_notification_contract additionally needs
+  # AI_QUALITY_SERVICE_URL: the test itself starts a minimal mock quality
+  # service on 127.0.0.1:8001 (see `start_quality_mock` in
+  # tests/api_contract.rs), so no separate mock server process is needed here
+  # — the server just needs to be pointed at that address.
+  contract-tests:
+    name: contract + integration tests
+    runs-on: ubuntu-latest
+    needs: [test]
+
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_USER: stocklink
+          POSTGRES_PASSWORD: stocklink
+          POSTGRES_DB: stocklink
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgres://stocklink:stocklink@localhost:5432/stocklink
+      REDIS_URL: redis://localhost:6379
+      JWT_ACCESS_SECRET: ci-test-secret-at-least-32-bytes-long
+      SQLX_OFFLINE: false
+      STOCKLINK_API_URL: http://127.0.0.1:8080
+      AI_QUALITY_SERVICE_URL: http://127.0.0.1:8001/assess
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install stable toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Install system deps
+        run: sudo apt-get update && sudo apt-get install -y pkg-config libssl-dev
+
+      - name: cargo build --release
+        run: cargo build --release
+
+      - name: Apply migrations
+        # The server no longer migrates itself at boot (see "Startup order"
+        # in docs/ARCHITECTURE.md) — it refuses to start against a schema
+        # with pending migrations. Run the standalone migrate step first,
+        # exactly as a real rollout would.
+        run: ./target/release/stocklink-server migrate
+
+      - name: Start server in background
+        run: |
+          nohup ./target/release/stocklink-server > server.log 2>&1 &
+          echo $! > server.pid
+
+      - name: Wait for /health/ready
+        run: |
+          for i in $(seq 1 60); do
+            if curl -sf "$STOCKLINK_API_URL/health/ready" > /dev/null; then
+              echo "server ready after ${i}s"
+              exit 0
+            fi
+            if ! kill -0 "$(cat server.pid)" 2>/dev/null; then
+              echo "::error::server process exited before becoming ready"
+              cat server.log
+              exit 1
+            fi
+            sleep 1
+          done
+          echo "::error::server did not become ready within 60s"
+          cat server.log
+          exit 1
+
+      - name: Run ignored contract + integration tests
+        run: cargo test --test api_contract --test integration_runtime -- --ignored
+
+      - name: Show server logs
+        if: always()
+        run: cat server.log || true
+
+      - name: Stop background server
+        if: always()
+        run: |
+          if [ -f server.pid ]; then
+            kill "$(cat server.pid)" 2>/dev/null || true
+          fi
+
+  # ── Fail-fast-without-migrations check ───────────────────────────────────────
+  #
+  # The flip side of moving migrations out of the normal boot path (see
+  # "Startup order" in docs/ARCHITECTURE.md): confirms the server refuses to
+  # start — a clear error, not a panic — against a database with no
+  # migrations applied, instead of silently applying them itself (which would
+  # reintroduce the multi-replica migration race this change exists to avoid).
+  startup-fails-without-migrations:
+    name: startup fails fast without migrations
+    runs-on: ubuntu-latest
+    needs: [test]
+
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_USER: stocklink
+          POSTGRES_PASSWORD: stocklink
+          POSTGRES_DB: stocklink
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+
+    env:
+      # Deliberately no Postgres migration step in this job — the point is to
+      # boot the default (serving) path against a bare, unmigrated schema.
+      DATABASE_URL: postgres://stocklink:stocklink@localhost:5432/stocklink
+      REDIS_URL: redis://localhost:6379
+      JWT_ACCESS_SECRET: ci-test-secret-at-least-32-bytes-long
+      # No live migrations here, so compile-time query checking must use the
+      # committed `.sqlx/` cache rather than introspecting the (unmigrated)
+      # database.
+      SQLX_OFFLINE: true
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install stable toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Install system deps
+        run: sudo apt-get update && sudo apt-get install -y pkg-config libssl-dev
+
+      - name: cargo build --release
+        run: cargo build --release
+
+      - name: Server must refuse to start against an unmigrated database
+        run: |
+          set +e
+          ./target/release/stocklink-server > server.log 2>&1
+          status=$?
+          set -e
+
+          echo "--- server output ---"
+          cat server.log
+          echo "----------------------"
+
+          if [ "$status" -eq 0 ]; then
+            echo "::error::server exited 0 against an unmigrated database; it should have refused to start"
+            exit 1
+          fi
+          if grep -qi "panicked at" server.log; then
+            echo "::error::startup failure was a panic, not a clean error"
+            exit 1
+          fi
+          if ! grep -qi "pending migration" server.log; then
+            echo "::error::expected a clear pending-migrations error message in server output"
+            exit 1
+          fi
+          echo "server correctly refused to start (exit ${status}) against an unmigrated database"
+
+  # ── Release binary ──────────────────────────────────────────────────────────
+  release:
+    name: release build
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    needs: [fmt, clippy, test]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install stable toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Install system deps
+        run: sudo apt-get update && sudo apt-get install -y pkg-config libssl-dev
+
+      - name: cargo build --release
+        run: cargo build --release
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: stocklink-server
+          path: target/release/stocklink-server
+          retention-days: 7
+
+  docker:
+    name: docker image
+    runs-on: ubuntu-latest
+    needs: [fmt, clippy, test]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build runtime image
+        run: docker build -t stocklink-server:${{ github.sha }} .

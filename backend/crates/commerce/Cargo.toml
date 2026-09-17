@@ -1,0 +1,56 @@
+[package]
+name = "stocklink-commerce"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[[bin]]
+name = "stocklink-commerce"
+path = "src/main.rs"
+
+[[bin]]
+name = "stocklink-commerce-outbox-publisher"
+path = "src/bin/outbox-publisher.rs"
+required-features = ["kafka"]
+
+[[bin]]
+name = "commerce-seed"
+path = "src/bin/seed.rs"
+
+[dependencies]
+stocklink-shared = { path = "../shared" }
+
+axum = { workspace = true }
+tower = { workspace = true }
+tower-http = { workspace = true }
+tokio = { workspace = true }
+
+sqlx = { workspace = true }
+deadpool-redis = { workspace = true }
+redis = { workspace = true }
+
+serde = { workspace = true }
+serde_json = { workspace = true }
+reqwest = { workspace = true }
+
+uuid = { workspace = true }
+rust_decimal = { workspace = true }
+chrono = { workspace = true }
+validator = { workspace = true }
+
+thiserror = { workspace = true }
+anyhow = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+dotenvy = { workspace = true }
+async-trait = { workspace = true }
+utoipa = { workspace = true }
+utoipa-swagger-ui = { workspace = true }
+rdkafka = { workspace = true, optional = true }
+
+[features]
+default = []
+kafka = ["dep:rdkafka"]
+
+[dev-dependencies]
+rust_decimal_macros = "1"

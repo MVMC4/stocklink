@@ -1,0 +1,12 @@
+packages:
+  - '.'
+
+# pnpm blocks dependency build scripts by default; allow the two this site
+# needs (esbuild for MDX bundling, sharp for Next image optimisation).
+allowBuilds:
+  esbuild: true
+  sharp: true
+
+minimumReleaseAgeExclude:
+  - fumadocs-core@16.15.10
+  - fumadocs-ui@16.15.10

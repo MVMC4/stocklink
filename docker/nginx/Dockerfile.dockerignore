@@ -1,0 +1,5 @@
+# BuildKit reads this file for docker/nginx/Dockerfile (repository-root context).
+# The gateway image needs only its routing configs.
+*
+!docker/nginx/gateway.conf
+!docker/nginx/gateway.dev.conf

@@ -1,0 +1,350 @@
+/* StockLink design system — practical neo-brutalism: thick black borders,
+   hard OFFSET shadows (never blurred, never a gradient fill), bold flat
+   accent colours, generous rounded corners. Ported from the visual
+   language actually running in the reference project's rider app (its
+   `app/globals.css` "practical neo-brutalism" section) onto StockLink's
+   sidebar+dashboard shape. No gradients anywhere — not the literal CSS
+   function, and not a blurred shape standing in for one either (see
+   AGENTS.md rule 8). Light is the only theme for now: this look is built
+   around one deliberate cream/ink palette, not a light/dark pair. */
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=DM+Mono:wght@500;600&display=swap');
+
+:root {
+  --page-bg: #eeece3;
+  --paper: #fffdf3;
+  --card: #ffffff;
+  --ink: #111111;
+  --text: #16171a;
+  --muted: #5c5f52;
+  --faint: #8a8c7f;
+  --line: #e4e2d6;
+
+  --blue: #445cff;
+  --blue-soft: #edf0ff;
+  --orange: #ff6a35;
+  --orange-soft: #fff2e9;
+  --pink: #ff70b7;
+  --pink-soft: #fff0f7;
+  --acid: #c9ff4a;
+  --acid-soft: #f1ffd8;
+  --ok: #16a34a;
+  --ok-soft: #eefdf3;
+  --warn: #b45309;
+  --warn-soft: #fffaeb;
+  --danger: #c0392b;
+
+  /* Flat icon-chip palette, cycled — solid colour + black border, never a
+     gradient fill. */
+  --chip-blue: var(--blue); --chip-blue-soft: var(--blue-soft);
+  --chip-violet: #7c5cfc; --chip-violet-soft: #f2efff;
+  --chip-amber: var(--orange); --chip-amber-soft: var(--orange-soft);
+  --chip-teal: #0e9488; --chip-teal-soft: #eafbf8;
+
+  --radius-lg: 26px;
+  --radius: 18px;
+  --radius-sm: 12px;
+  --bw: 2px;
+  --bw-lg: 3px;
+  /* Hard offset shadows only — no blur radius, ever. */
+  --pop: 4px 4px 0 var(--ink);
+  --pop-sm: 2px 2px 0 var(--ink);
+  --pop-lg: 7px 7px 0 var(--ink);
+  --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+  color-scheme: light;
+}
+
+* { box-sizing: border-box; }
+html, body, #root { height: 100%; }
+body {
+  margin: 0;
+  background: var(--page-bg);
+  color: var(--text);
+  font: 14px/1.55 'DM Sans', "Segoe UI", system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+button, input { font: inherit; color: inherit; }
+button { cursor: pointer; }
+
+/* Thin everywhere, and near-invisible until actually hovered — a scrollbar
+   shouldn't compete with the thick black borders that are doing the real
+   visual work here. */
+* { scrollbar-width: thin; scrollbar-color: transparent transparent; }
+*:hover { scrollbar-color: rgba(17, 17, 17, 0.22) transparent; }
+*::-webkit-scrollbar { width: 6px; height: 6px; }
+*::-webkit-scrollbar-track { background: transparent; }
+*::-webkit-scrollbar-thumb { background: transparent; border-radius: 999px; }
+*:hover::-webkit-scrollbar-thumb { background: rgba(17, 17, 17, 0.22); }
+*::-webkit-scrollbar-thumb:hover { background: rgba(17, 17, 17, 0.4); }
+
+.app-root { height: 100%; padding: 14px; }
+
+/* Solid card with a thick black border and a hard offset shadow — the
+   defining surface treatment. Kept as the `.glass` class name since every
+   screen already uses it; only its definition changed as the design moved
+   through several passes this session. */
+.glass {
+  background: var(--card);
+  border: var(--bw) solid var(--ink);
+  border-radius: var(--radius);
+  box-shadow: var(--pop);
+}
+.pop { box-shadow: var(--pop-lg) !important; }
+.pop-sm { box-shadow: var(--pop-sm) !important; }
+
+.shell {
+  display: grid; grid-template-columns: 232px 1fr; gap: 14px; height: 100%;
+}
+.sidebar {
+  display: flex; flex-direction: column; padding: 16px 12px;
+  background: var(--paper); border: var(--bw-lg) solid var(--ink); border-radius: var(--radius-lg);
+  box-shadow: var(--pop-lg);
+}
+.brand { display: flex; align-items: center; gap: 10px; padding: 6px 8px 20px; font-weight: 800; letter-spacing: -0.02em; }
+.brand-mark {
+  width: 32px; height: 32px; border-radius: 10px; background: var(--acid); color: var(--ink);
+  display: grid; place-items: center; font-size: 13px; font-weight: 800; flex: 0 0 auto;
+  border: var(--bw) solid var(--ink); box-shadow: var(--pop-sm);
+}
+.nav { display: grid; gap: 6px; }
+.nav button {
+  display: flex; align-items: center; gap: 10px; width: 100%; padding: 10px 12px;
+  border: var(--bw) solid transparent; border-radius: 14px; background: transparent; color: var(--muted); text-align: left;
+  font-weight: 600; transition: border-color 140ms var(--ease), background 140ms var(--ease), box-shadow 140ms var(--ease);
+}
+.nav button:hover { border-color: var(--ink); background: var(--card); box-shadow: var(--pop-sm); }
+.nav button[aria-current="page"] { border-color: var(--ink); background: var(--acid); color: var(--ink); box-shadow: var(--pop-sm); }
+.sidebar-foot { margin-top: auto; }
+
+/* Shown/hidden by the media query below — never both at once, so there is
+   exactly one profile trigger on screen at any viewport width. */
+.mobile-only { display: none; }
+
+/* ── profile menu ──────────────────────────────────────────────────────── */
+.profile-anchor { position: relative; }
+.profile-trigger {
+  display: flex; align-items: center; gap: 10px; width: 100%; padding: 8px; border: var(--bw) solid transparent;
+  border-radius: 14px; background: transparent; text-align: left; transition: border-color 140ms var(--ease), box-shadow 140ms var(--ease);
+}
+.profile-trigger:hover { border-color: var(--ink); box-shadow: var(--pop-sm); background: var(--card); }
+/* Desktop: trigger sits at the sidebar's bottom, so the popover opens
+   upward. Mobile: trigger moves into the topbar near the top of the page,
+   so it has to open downward instead or it renders above the viewport. */
+.sidebar-foot .profile-popover { bottom: calc(100% + 10px); left: 0; right: 0; width: auto; }
+.topbar .profile-popover { top: calc(100% + 10px); right: 0; }
+.avatar {
+  width: 32px; height: 32px; border-radius: 11px; flex: 0 0 auto; display: grid; place-items: center;
+  background: var(--acid); color: var(--ink); font-size: 12px; font-weight: 800;
+  border: var(--bw) solid var(--ink); box-shadow: var(--pop-sm);
+}
+.profile-trigger .who { min-width: 0; }
+.profile-trigger .email { font-size: 12.5px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.profile-trigger .roles { display: flex; gap: 4px; margin-top: 3px; }
+.profile-popover {
+  position: absolute; z-index: 20; padding: 8px; width: 240px;
+  animation: rise 160ms var(--ease) both; background: var(--paper); color: var(--text);
+}
+.profile-popover .pp-head { padding: 8px 10px 10px; border-bottom: var(--bw) solid var(--ink); margin-bottom: 6px; }
+.profile-popover .pp-head .email { font-size: 13px; font-weight: 700; word-break: break-all; }
+.profile-popover .pp-head .roles { display: flex; gap: 6px; margin-top: 6px; flex-wrap: wrap; }
+.profile-popover button.pp-item {
+  display: flex; align-items: center; gap: 9px; width: 100%; padding: 9px 10px; border: 0;
+  border-radius: 10px; background: transparent; color: var(--text); text-align: left; font-size: 13px; font-weight: 600;
+  transition: background 140ms var(--ease);
+}
+.profile-popover button.pp-item:hover { background: var(--acid-soft); }
+.profile-popover button.pp-item.danger { color: var(--danger); }
+.profile-scrim { position: fixed; inset: 0; z-index: 19; }
+
+.main { display: flex; flex-direction: column; gap: 14px; min-width: 0; overflow-y: auto; overflow-x: hidden; padding: 0 4px 20px 0; }
+.topbar {
+  display: flex; align-items: center; gap: 12px; padding: 14px 20px; position: sticky; top: 0; z-index: 5;
+  background: var(--paper); border: var(--bw) solid var(--ink); border-radius: var(--radius); box-shadow: var(--pop);
+}
+.topbar h1 { margin: 0; font-size: 20px; font-weight: 800; letter-spacing: -0.02em; }
+.topbar .spacer { flex: 1; }
+
+.notice { display: flex; align-items: center; gap: 10px; padding: 10px 16px; font-size: 13px; color: var(--muted); }
+.notice strong { color: var(--text); font-weight: 700; }
+
+.grid { display: grid; gap: 14px; }
+.kpis { grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); }
+.kpi { padding: 18px; display: flex; flex-direction: column; gap: 10px; }
+.kpi:nth-child(4n+2) { background: var(--blue-soft); }
+.kpi:nth-child(4n+3) { background: var(--orange-soft); }
+.kpi:nth-child(4n+4) { background: var(--pink-soft); }
+.kpi-head { display: flex; align-items: center; justify-content: space-between; }
+.kpi .label { color: var(--muted); font-size: 12.5px; font-weight: 700; }
+.kpi .value { font-size: 27px; font-weight: 800; letter-spacing: -0.02em; }
+.kpi .delta { font-size: 12px; color: var(--ok); font-weight: 600; }
+.kpi .delta.flat { color: var(--faint); }
+.kpi .spark { display: block; margin-top: 2px; }
+.split { grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); }
+
+/* Flat, solid-fill icon chips with a black border — no gradients. */
+.icon-chip {
+  width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; flex: 0 0 auto;
+  border: var(--bw) solid var(--ink); box-shadow: var(--pop-sm);
+}
+.icon-chip.c0 { background: var(--chip-blue-soft); color: var(--chip-blue); }
+.icon-chip.c1 { background: var(--chip-violet-soft); color: var(--chip-violet); }
+.icon-chip.c2 { background: var(--chip-amber-soft); color: var(--chip-amber); }
+.icon-chip.c3 { background: var(--chip-teal-soft); color: var(--chip-teal); }
+
+.card { padding: 20px; }
+.card-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+.card-head h2 { margin: 0; font-size: 16px; font-weight: 800; letter-spacing: -0.01em; }
+.card-head span { color: var(--faint); font-size: 12px; font-weight: 600; }
+
+.suggestion { display: flex; gap: 12px; align-items: flex-start; padding: 12px; border-radius: var(--radius-sm); border: var(--bw) solid var(--ink); background: var(--blue-soft); margin-bottom: 10px; animation: rise 320ms var(--ease) both; }
+.suggestion svg { color: var(--blue); flex: 0 0 auto; margin-top: 2px; }
+.suggestion p { margin: 0 0 8px; }
+.suggestion small { display: block; color: var(--muted); }
+
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+  border: var(--bw) solid var(--ink); border-radius: var(--radius-sm); padding: 9px 16px;
+  background: var(--blue); color: #fff; font-weight: 700; font-size: 13.5px;
+  box-shadow: var(--pop); transition: transform 120ms var(--ease), box-shadow 120ms var(--ease);
+}
+.btn:hover:not(:disabled) { transform: translate(-1px, -1px); box-shadow: 5px 5px 0 var(--ink); }
+.btn:active:not(:disabled) { transform: translate(2px, 2px); box-shadow: 2px 2px 0 var(--ink); }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn.ghost { background: var(--paper); color: var(--text); }
+
+table { width: 100%; border-collapse: collapse; }
+th { text-align: left; font-weight: 700; color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; padding: 8px 10px; border-bottom: var(--bw) solid var(--ink); }
+td { padding: 12px 10px; border-bottom: 1px solid var(--line); }
+tr:last-child td { border-bottom: 0; }
+tbody tr { transition: background 140ms var(--ease); }
+tbody tr:hover { background: var(--acid-soft); }
+
+.pill { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px; font-size: 11.5px; font-weight: 700; background: var(--card); color: var(--muted); border: 1.5px solid var(--ink); }
+.pill.ok { background: var(--ok-soft); color: var(--ok); }
+.pill.warn { background: var(--warn-soft); color: var(--warn); }
+.pill.accent { background: var(--acid); color: var(--ink); }
+
+.progress { height: 8px; border-radius: 999px; background: var(--line); border: 1.5px solid var(--ink); overflow: hidden; }
+.progress > i { display: block; height: 100%; background: var(--acid); transition: width 600ms var(--ease); }
+
+.timeline { list-style: none; margin: 0; padding: 0; }
+.timeline li { display: grid; grid-template-columns: 18px 1fr auto; gap: 10px; padding: 8px 0; color: var(--muted); }
+.timeline .dot { width: 10px; height: 10px; border-radius: 50%; margin-top: 6px; background: var(--card); border: 2px solid var(--faint); }
+.timeline li.done { color: var(--text); font-weight: 600; }
+.timeline li.done .dot { background: var(--ok); border-color: var(--ink); }
+.timeline li.now .dot { background: var(--acid); border-color: var(--ink); box-shadow: 0 0 0 4px var(--acid-soft); }
+
+.view { display: grid; gap: 14px; animation: fade 260ms var(--ease) both; align-content: start; }
+
+.palette-scrim { position: fixed; inset: 0; background: rgba(17, 17, 17, 0.45); display: grid; place-items: start center; padding-top: 14vh; z-index: 50; animation: fade 160ms var(--ease) both; }
+.palette { width: min(560px, calc(100vw - 32px)); overflow: hidden; animation: rise 220ms var(--ease) both; background: var(--paper); }
+
+@keyframes fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
+
+/* ── forms ─────────────────────────────────────────────────────────────── */
+.field { display: grid; gap: 6px; margin-bottom: 14px; }
+.field label { font-size: 12.5px; color: var(--text); font-weight: 700; }
+.input {
+  width: 100%; padding: 10px 13px; border-radius: var(--radius-sm); border: var(--bw) solid var(--ink);
+  background: var(--card); color: var(--text); outline: 0; font-size: 13.5px; font-weight: 500;
+  transition: box-shadow 140ms var(--ease);
+}
+.input:focus { box-shadow: var(--pop-sm); }
+.field-error { font-size: 12px; color: var(--danger); font-weight: 600; }
+.form-actions { display: flex; gap: 10px; align-items: center; margin-top: 4px; }
+
+/* ── auth screen ───────────────────────────────────────────────────────── */
+.auth-screen { min-height: 100%; display: grid; place-items: center; padding: 24px; background: var(--page-bg); }
+.auth-card { width: min(400px, 100%); padding: 32px 28px; background: var(--paper); }
+.auth-card .brand { padding: 0 0 22px; justify-content: center; color: var(--text); }
+.auth-card h1 { font-size: 22px; font-weight: 800; margin: 0 0 6px; text-align: center; letter-spacing: -0.02em; }
+.auth-card p.lead { margin: 0 0 22px; color: var(--muted); font-size: 13px; text-align: center; font-weight: 500; }
+.auth-card .btn { width: 100%; justify-content: center; display: flex; }
+.dev-code-hint { margin-top: 14px; padding: 10px 12px; border-radius: var(--radius-sm); border: var(--bw) solid var(--ink); background: var(--acid-soft); color: var(--text); font-size: 12.5px; text-align: center; font-weight: 700; }
+
+/* ── marketplace ───────────────────────────────────────────────────────── */
+.product-grid { grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); }
+.product-card { padding: 18px; display: flex; flex-direction: column; gap: 8px; transition: transform 140ms var(--ease), box-shadow 140ms var(--ease); }
+.product-card:nth-child(3n+2) { background: var(--blue-soft); }
+.product-card:nth-child(3n+3) { background: var(--orange-soft); }
+.product-card:hover { transform: translate(-2px, -2px); box-shadow: var(--pop-lg); }
+.product-card .name { font-weight: 800; font-size: 14px; }
+.product-card .meta { color: var(--faint); font-size: 12px; font-weight: 600; }
+.product-card .price { font-size: 20px; font-weight: 800; letter-spacing: -0.01em; margin-top: 4px; }
+.product-card .price small { font-size: 12px; color: var(--muted); font-weight: 500; }
+.product-card .tiers { display: flex; gap: 6px; flex-wrap: wrap; margin: 4px 0; }
+.tier-chip {
+  padding: 4px 10px; border-radius: 999px; font-size: 11.5px; font-weight: 700; border: 1.5px solid var(--ink);
+  background: var(--card); color: var(--muted); transition: all 140ms var(--ease);
+}
+.tier-chip[aria-pressed="true"] { background: var(--ink); color: var(--acid); border-color: var(--ink); }
+.qty-row { display: flex; align-items: center; gap: 8px; }
+.qty-row .input { width: 72px; text-align: center; }
+
+.empty { display: grid; place-items: center; gap: 8px; padding: 48px 20px; color: var(--faint); text-align: center; }
+.empty svg { opacity: 0.6; }
+.empty strong { color: var(--text); font-weight: 700; }
+
+/* Loading skeletons: a flat opacity pulse, not a moving gradient sweep —
+   staying inside the no-gradients rule while still reading as "loading". */
+.skeleton-card { padding: 20px; display: grid; gap: 10px; }
+.skeleton-line { height: 14px; border-radius: 6px; background: var(--line); animation: pulse 1.3s ease-in-out infinite; }
+@keyframes pulse { 0%, 100% { opacity: 0.5; } 50% { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .skeleton-line { animation: none; opacity: 0.7; } }
+
+.cart-line { display: grid; grid-template-columns: 1fr auto auto; align-items: center; gap: 14px; padding: 12px 0; border-bottom: 1.5px solid var(--line); }
+.cart-line:last-child { border-bottom: 0; }
+.cart-line .name { font-weight: 700; }
+.cart-line .meta { color: var(--faint); font-size: 12px; font-weight: 500; }
+.cart-total { display: flex; justify-content: space-between; align-items: baseline; padding-top: 14px; margin-top: 6px; border-top: var(--bw) solid var(--ink); }
+.cart-total .amount { font-size: 24px; font-weight: 800; }
+
+.toast-stack { position: fixed; bottom: 20px; right: 20px; display: grid; gap: 8px; z-index: 60; max-width: min(320px, calc(100vw - 40px)); }
+.toast { padding: 12px 16px; min-width: 220px; animation: rise 220ms var(--ease) both; background: var(--acid); }
+.toast.error { background: var(--card); color: var(--danger); }
+
+/* ── tooltips ──────────────────────────────────────────────────────────── */
+.tooltip { position: relative; display: inline-flex; }
+.tooltip .tip {
+  position: absolute; bottom: calc(100% + 8px); left: 0; transform: translateY(2px);
+  background: var(--ink); color: var(--acid); font-size: 11.5px; font-weight: 600; line-height: 1.45;
+  padding: 7px 10px; border-radius: 8px; white-space: normal; width: max-content; max-width: 190px;
+  box-shadow: var(--pop-sm); text-align: left;
+  opacity: 0; pointer-events: none; transition: opacity 120ms var(--ease), transform 120ms var(--ease); z-index: 30;
+}
+.tooltip:hover .tip, .tooltip:focus-within .tip { opacity: 1; transform: translateY(0); }
+.tooltip svg { color: var(--faint); }
+
+@media (max-width: 880px) {
+  .app-root { padding: 0; }
+  .shell { grid-template-columns: 1fr; gap: 0; height: auto; min-height: 100%; }
+  .main { padding: 8px 8px calc(92px + env(safe-area-inset-bottom)); }
+  .topbar { margin: 0 0 4px; }
+
+  /* Mobile dock: the sidebar becomes a floating, centred, bottom-anchored
+     pill — icons over labels — like the reference's `.rider-dock`, not a
+     wrapped or horizontally-scrolling strip of the desktop sidebar. */
+  .sidebar {
+    position: fixed; z-index: 40; left: 50%; right: auto; bottom: 14px; top: auto;
+    transform: translateX(-50%); width: min(460px, calc(100vw - 24px)); height: auto;
+    flex-direction: row; padding: 8px; border-radius: 999px;
+  }
+  .brand, .sidebar-foot { display: none; }
+  .nav { grid-auto-flow: unset; display: flex; flex: 1; gap: 4px; }
+  .nav button {
+    position: relative; width: auto; flex: 1; flex-direction: column; gap: 2px; padding: 8px 4px;
+    border-radius: 999px; font-size: 10.5px; text-align: center;
+  }
+  .nav button .pill { position: absolute; top: 2px; right: 10px; margin-left: 0 !important; }
+  /* The desktop trigger (sidebar bottom) is hidden above; this one, in the
+     topbar, takes over so there's still exactly one profile menu on screen. */
+  .mobile-only { display: block; }
+  .profile-trigger { padding: 6px; }
+  /* Toasts default to bottom-right, which is exactly where the floating
+     dock now lives — move them to the top on narrow viewports instead of
+     letting the two collide. */
+  .toast-stack { top: 8px; bottom: auto; right: 8px; left: 8px; max-width: none; }
+  .profile-trigger .who { display: none; }
+  .split { grid-template-columns: 1fr; }
+}

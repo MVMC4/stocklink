@@ -1,0 +1,27 @@
+# Rust build artefacts
+/target
+Cargo.lock.bak
+
+# Environment — never commit populated env files
+.env
+.env.local
+*.local
+
+# Production secret material mounted into containers via *_FILE (see
+# docker-compose.prod.yml). Operators create these out of band; never commit
+# real values. The README is kept as operator guidance.
+/secrets/*
+!/secrets/README.md
+
+# Editor / OS
+.DS_Store
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Docker
+*.tar
+
+# Logs
+*.log

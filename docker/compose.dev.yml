@@ -1,0 +1,491 @@
+# StockLink development stack — four independent services (identity,
+# commerce, notifications, media) behind one gateway, each with its own
+# Postgres database on a shared Postgres instance (see
+# docker/init-databases.sql) and a shared Redis instance (JWT verification is
+# stateless — every service holds the same signing secret — and the
+# access-token denylist/rate limiter are Redis-backed so revocation and
+# throttling are visible across services immediately; see
+# docs/STATUS.md's microservices entry for the full reasoning).
+#
+# Start:    docker compose -f docker/compose.dev.yml up -d --build
+# Stop:     docker compose -f docker/compose.dev.yml down
+# Reset:    docker compose -f docker/compose.dev.yml down -v   # DESTROYS dev data
+#
+# Rolling-update one service without downtime:
+#   node scripts/rolling-update.mjs commerce
+#
+# Gateway (the one documented URL for this environment):
+#   http://localhost:${SL_DEV_GATEWAY_PORT:-5190}/                 -> web
+#   http://localhost:${SL_DEV_GATEWAY_PORT:-5190}/api/v1/auth/*     -> identity
+#   http://localhost:${SL_DEV_GATEWAY_PORT:-5190}/api/v1/onboarding/* -> identity
+#   http://localhost:${SL_DEV_GATEWAY_PORT:-5190}/api/v1/admin/*    -> identity
+#   http://localhost:${SL_DEV_GATEWAY_PORT:-5190}/api/v1/catalog*   -> commerce
+#   http://localhost:${SL_DEV_GATEWAY_PORT:-5190}/api/v1/cart/*     -> commerce
+#   http://localhost:${SL_DEV_GATEWAY_PORT:-5190}/api/v1/orders*    -> commerce
+#   http://localhost:${SL_DEV_GATEWAY_PORT:-5190}/api/v1/warehouses/* -> commerce
+#   http://localhost:${SL_DEV_GATEWAY_PORT:-5190}/api/v1/notifications* -> notifications
+#   http://localhost:${SL_DEV_GATEWAY_PORT:-5190}/api/v1/devices    -> notifications
+#   http://localhost:${SL_DEV_GATEWAY_PORT:-5190}/api/v1/media/*    -> media
+#   http://localhost:${SL_DEV_GATEWAY_PORT:-5190}/docs              -> Fumadocs
+#
+# `/internal/*` is never routed by the gateway at all (see gateway.dev.conf)
+# — only reachable service-to-service on the `app` network, and guarded
+# again by the shared `X-Internal-Token` (stocklink_shared::middleware).
+name: stocklink-dev
+
+x-common-labels: &common-labels
+  app.kubernetes.io/instance: stocklink-dev
+  app.kubernetes.io/part-of: stocklink
+  app.kubernetes.io/version: ${SL_REVISION:-dev}
+  app.kubernetes.io/managed-by: docker-compose
+  io.stocklink.environment: dev
+  io.stocklink.owner: ${SL_OWNER:-platform-engineering}
+  org.opencontainers.image.revision: ${SL_REVISION:-unknown}
+
+# Every service verifies JWTs with this same secret and checks the same
+# Redis-backed denylist/rate limiter — see the file header comment.
+x-shared-env: &shared-env
+  STOCKLINK_ENV: development
+  REDIS_URL: redis://redis:6379
+  JWT_ACCESS_SECRET: dev-only-change-me-before-sharing-32-bytes
+  INTERNAL_SERVICE_TOKEN: dev-only-internal-token-change-me
+  SERVER_HOST: 0.0.0.0
+  ENFORCE_HTTPS: "false"
+  RATE_LIMIT_ENABLED: "true"
+  CORS_ALLOWED_ORIGINS: ${SL_DEV_CORS_ORIGINS:-http://localhost:5190}
+  LOG_JSON: "false"
+
+services:
+  db:
+    image: postgres:15-alpine
+    container_name: stocklink-dev-db
+    restart: unless-stopped
+    labels:
+      <<: *common-labels
+      app.kubernetes.io/name: stocklink-db
+      app.kubernetes.io/component: database
+      io.stocklink.service: db
+      io.stocklink.data-classification: confidential
+    environment:
+      POSTGRES_USER: stocklink
+      POSTGRES_PASSWORD: stocklink
+      POSTGRES_DB: stocklink
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      # Only runs against a brand-new data directory (postgres' own
+      # docker-entrypoint-initdb.d behaviour) — creates the four per-service
+      # databases once.
+      - ./init-databases.sql:/docker-entrypoint-initdb.d/init-databases.sql:ro
+    networks:
+      - data
+    ports:
+      - "${SL_DEV_POSTGRES_PORT:-5443}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U stocklink"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: stocklink-dev-redis
+    restart: unless-stopped
+    labels:
+      <<: *common-labels
+      app.kubernetes.io/name: stocklink-redis
+      app.kubernetes.io/component: cache
+      io.stocklink.service: redis
+      io.stocklink.data-classification: confidential
+    command: redis-server --save 60 1 --loglevel warning
+    volumes:
+      - redis-data:/data
+    networks:
+      - data
+    ports:
+      - "${SL_DEV_REDIS_PORT:-6390}:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # ── identity ────────────────────────────────────────────────────────────
+  identity-migrate:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+      args:
+        SERVICE: identity
+    image: stocklink/identity:dev
+    container_name: stocklink-dev-identity-migrate
+    command: ["migrate"]
+    restart: "no"
+    labels:
+      <<: *common-labels
+      app.kubernetes.io/name: stocklink-identity-migrate
+      io.stocklink.service: identity-migrate
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      <<: *shared-env
+      DATABASE_URL: postgres://stocklink:stocklink@db:5432/stocklink_identity
+      # `migrate` only touches config.database, but Config::from_env() loads
+      # everything up front (see main.rs) — these still have to be present
+      # and valid even though migration never uses them.
+      OTP_DEV_ECHO_ENABLED: "true"
+      RESEND_API_KEY: dev-placeholder-not-a-real-key
+      EMAIL_FROM_ADDRESS: otp@stocklink.example
+    networks:
+      - data
+
+  identity:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+      args:
+        SERVICE: identity
+    image: stocklink/identity:dev
+    # No container_name: this service is designed to be scaled during a
+    restart: unless-stopped
+    labels:
+      <<: *common-labels
+      app.kubernetes.io/name: stocklink-identity
+      app.kubernetes.io/component: identity
+      io.stocklink.service: identity
+      io.stocklink.data-classification: internal
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      identity-migrate:
+        condition: service_completed_successfully
+    environment:
+      <<: *shared-env
+      DATABASE_URL: postgres://stocklink:stocklink@db:5432/stocklink_identity
+      SERVER_PORT: "8080"
+      OTP_DEV_ECHO_ENABLED: "true"
+      RESEND_API_KEY: dev-placeholder-not-a-real-key
+      EMAIL_FROM_ADDRESS: otp@stocklink.example
+      RUST_LOG: stocklink_identity=debug,tower_http=info,info
+    networks:
+      - app
+      - data
+    # No fixed host `ports:` — a service designed to be scaled during a
+    # rolling update (scripts/rolling-update.mjs) can't publish a static
+    # host port (two replicas would both try to bind it). Reach it through
+    # the gateway, or `docker compose -f docker/compose.dev.yml port identity 8080`
+    # for a one-off direct connection.
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://127.0.0.1:8080/health/ready || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+
+  # ── commerce ────────────────────────────────────────────────────────────
+  commerce-migrate:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+      args:
+        SERVICE: commerce
+    image: stocklink/commerce:dev
+    container_name: stocklink-dev-commerce-migrate
+    command: ["migrate"]
+    restart: "no"
+    labels:
+      <<: *common-labels
+      app.kubernetes.io/name: stocklink-commerce-migrate
+      io.stocklink.service: commerce-migrate
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      <<: *shared-env
+      DATABASE_URL: postgres://stocklink:stocklink@db:5432/stocklink_commerce
+      # `migrate` only touches config.database — see identity-migrate's
+      # comment above for why these still have to be present.
+      IDENTITY_SERVICE_URL: http://identity:8080
+      NOTIFICATIONS_SERVICE_URL: http://notifications:8080
+    networks:
+      - data
+
+  commerce:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+      args:
+        SERVICE: commerce
+    image: stocklink/commerce:dev
+    # No container_name: this service is designed to be scaled during a
+    restart: unless-stopped
+    labels:
+      <<: *common-labels
+      app.kubernetes.io/name: stocklink-commerce
+      app.kubernetes.io/component: commerce
+      io.stocklink.service: commerce
+      io.stocklink.data-classification: internal
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      commerce-migrate:
+        condition: service_completed_successfully
+      identity:
+        condition: service_healthy
+    environment:
+      <<: *shared-env
+      DATABASE_URL: postgres://stocklink:stocklink@db:5432/stocklink_commerce
+      SERVER_PORT: "8080"
+      IDENTITY_SERVICE_URL: http://identity:8080
+      NOTIFICATIONS_SERVICE_URL: http://notifications:8080
+      RUST_LOG: stocklink_commerce=debug,tower_http=info,info
+    networks:
+      - app
+      - data
+    # No fixed host `ports:` — see the identity service's comment above.
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://127.0.0.1:8080/health/ready || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+
+  # ── notifications ───────────────────────────────────────────────────────
+  notifications-migrate:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+      args:
+        SERVICE: notifications
+    image: stocklink/notifications:dev
+    container_name: stocklink-dev-notifications-migrate
+    command: ["migrate"]
+    restart: "no"
+    labels:
+      <<: *common-labels
+      app.kubernetes.io/name: stocklink-notifications-migrate
+      io.stocklink.service: notifications-migrate
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      <<: *shared-env
+      DATABASE_URL: postgres://stocklink:stocklink@db:5432/stocklink_notifications
+    networks:
+      - data
+
+  notifications:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+      args:
+        SERVICE: notifications
+    image: stocklink/notifications:dev
+    # No container_name: this service is designed to be scaled during a
+    restart: unless-stopped
+    labels:
+      <<: *common-labels
+      app.kubernetes.io/name: stocklink-notifications
+      app.kubernetes.io/component: notifications
+      io.stocklink.service: notifications
+      io.stocklink.data-classification: internal
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      notifications-migrate:
+        condition: service_completed_successfully
+    environment:
+      <<: *shared-env
+      DATABASE_URL: postgres://stocklink:stocklink@db:5432/stocklink_notifications
+      SERVER_PORT: "8080"
+      RUST_LOG: stocklink_notifications=debug,tower_http=info,info
+    networks:
+      - app
+      - data
+    # No fixed host `ports:` — see the identity service's comment above.
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://127.0.0.1:8080/health/ready || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+
+  # ── media ───────────────────────────────────────────────────────────────
+  media-migrate:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+      args:
+        SERVICE: media
+    image: stocklink/media:dev
+    container_name: stocklink-dev-media-migrate
+    command: ["migrate"]
+    restart: "no"
+    labels:
+      <<: *common-labels
+      app.kubernetes.io/name: stocklink-media-migrate
+      io.stocklink.service: media-migrate
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      <<: *shared-env
+      DATABASE_URL: postgres://stocklink:stocklink@db:5432/stocklink_media
+    networks:
+      - data
+
+  media:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+      args:
+        SERVICE: media
+    image: stocklink/media:dev
+    # No container_name: this service is designed to be scaled during a
+    restart: unless-stopped
+    labels:
+      <<: *common-labels
+      app.kubernetes.io/name: stocklink-media
+      app.kubernetes.io/component: media
+      io.stocklink.service: media
+      io.stocklink.data-classification: internal
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      media-migrate:
+        condition: service_completed_successfully
+    environment:
+      <<: *shared-env
+      DATABASE_URL: postgres://stocklink:stocklink@db:5432/stocklink_media
+      SERVER_PORT: "8080"
+      PUBLIC_MEDIA_BACKEND: local
+      PUBLIC_MEDIA_LOCAL_DIR: /var/lib/stocklink/media
+      PUBLIC_MEDIA_BASE_URL: http://localhost:${SL_DEV_GATEWAY_PORT:-5190}/api/v1/media/local
+      RUST_LOG: stocklink_media=debug,tower_http=info,info
+    volumes:
+      - media-data:/var/lib/stocklink/media
+    networks:
+      - app
+      - data
+    # No fixed host `ports:` — see the identity service's comment above.
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://127.0.0.1:8080/health/ready || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+
+  docs:
+    build:
+      context: ..
+      dockerfile: docs-site/Dockerfile
+    image: stocklink/docs:dev
+    container_name: stocklink-dev-docs
+    restart: unless-stopped
+    labels:
+      <<: *common-labels
+      app.kubernetes.io/name: stocklink-docs
+      app.kubernetes.io/component: documentation
+      io.stocklink.service: docs
+      io.stocklink.data-classification: public
+    networks:
+      - app
+    ports:
+      - "${SL_DEV_DOCS_PORT:-3011}:3010"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3010/docs >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+
+  web:
+    build:
+      context: ../web
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE_URL: ${SL_DEV_PUBLIC_API_URL:-http://localhost:5190/api}
+    image: stocklink/web:dev
+    container_name: stocklink-dev-web
+    restart: unless-stopped
+    labels:
+      <<: *common-labels
+      app.kubernetes.io/name: stocklink-web
+      app.kubernetes.io/component: web
+      io.stocklink.service: web
+      io.stocklink.data-classification: public
+    depends_on:
+      identity:
+        condition: service_healthy
+    networks:
+      - app
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1/"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+
+  gateway:
+    build:
+      context: ..
+      dockerfile: docker/nginx/Dockerfile
+      args:
+        GATEWAY_CONF: docker/nginx/gateway.dev.conf
+    image: stocklink/gateway:dev
+    container_name: stocklink-dev-gateway
+    restart: unless-stopped
+    labels:
+      <<: *common-labels
+      app.kubernetes.io/name: stocklink-gateway
+      app.kubernetes.io/component: gateway
+      io.stocklink.service: gateway
+      io.stocklink.data-classification: public
+    depends_on:
+      web:
+        condition: service_healthy
+      identity:
+        condition: service_healthy
+      commerce:
+        condition: service_healthy
+      notifications:
+        condition: service_healthy
+      media:
+        condition: service_healthy
+      docs:
+        condition: service_healthy
+    networks:
+      - edge
+      - app
+    ports:
+      - "${SL_DEV_GATEWAY_PORT:-5190}:80"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1/gw-health"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+
+networks:
+  edge:
+    name: stocklink-dev-edge
+  app:
+    name: stocklink-dev-app
+  data:
+    name: stocklink-dev-data
+
+volumes:
+  postgres-data:
+    name: stocklink-dev-postgres-data
+  redis-data:
+    name: stocklink-dev-redis-data
+  media-data:
+    name: stocklink-dev-media-data
