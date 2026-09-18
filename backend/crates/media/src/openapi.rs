@@ -12,7 +12,11 @@ use crate::schemas::media::{PresignUploadReq, PresignUploadRes};
 
 #[derive(OpenApi)]
 #[openapi(
-    paths(media::presign_upload,),
+    paths(
+        media::presign_upload,
+        media::upload_local,
+        media::serve_local,
+    ),
     components(schemas(
         PresignUploadReq,
         PresignUploadRes,

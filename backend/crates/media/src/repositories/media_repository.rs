@@ -48,4 +48,22 @@ impl MediaRepository {
             .await?;
         Ok(row)
     }
+
+    pub async fn find_by_object_key(&self, object_key: &str) -> AppResult<Option<MediaAsset>> {
+        let row =
+            sqlx::query_as::<_, MediaAsset>("SELECT * FROM media_assets WHERE object_key = $1")
+                .bind(object_key)
+                .fetch_optional(self.db.read())
+                .await?;
+        Ok(row)
+    }
+
+    pub async fn update_byte_size(&self, id: Uuid, byte_size: i64) -> AppResult<()> {
+        sqlx::query("UPDATE media_assets SET byte_size = $2 WHERE id = $1")
+            .bind(id)
+            .bind(byte_size)
+            .execute(self.db.write())
+            .await?;
+        Ok(())
+    }
 }

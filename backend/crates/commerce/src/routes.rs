@@ -1,6 +1,6 @@
 //! Router assembly for the commerce service.
 
-use axum::routing::{get, patch, post};
+use axum::routing::{delete, get, patch, post, put};
 use axum::Router;
 use stocklink_shared::middleware as shared_mw;
 use utoipa::OpenApi;
@@ -19,6 +19,22 @@ pub fn build_router(state: AppState) -> Router {
         .route(
             "/v1/warehouses/:warehouse_id/catalog",
             post(catalog::publish_item).get(catalog::list_warehouse_catalog),
+        )
+        .route(
+            "/v1/warehouses/:warehouse_id/catalog/:item_id/images",
+            post(catalog::attach_image),
+        )
+        .route(
+            "/v1/warehouses/:warehouse_id/catalog/:item_id/images/order",
+            put(catalog::reorder_images),
+        )
+        .route(
+            "/v1/warehouses/:warehouse_id/catalog/:item_id/images/:image_id",
+            delete(catalog::remove_image),
+        )
+        .route(
+            "/v1/warehouses/:warehouse_id/catalog/:item_id/images/:image_id/thumbnail",
+            put(catalog::set_thumbnail),
         )
         .route(
             "/v1/warehouses/:warehouse_id/orders",

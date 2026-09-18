@@ -22,6 +22,7 @@ pub struct WarehouseInfo {
     pub account_id: Uuid,
     pub name: String,
     pub region: String,
+    pub address: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]

@@ -48,6 +48,17 @@ impl CatalogItem {
 }
 
 #[derive(Debug, Clone, sqlx::FromRow)]
+pub struct CatalogItemImage {
+    pub id: Uuid,
+    pub catalog_item_id: Uuid,
+    pub media_asset_id: Uuid,
+    pub url: String,
+    pub sort_order: i16,
+    pub is_thumbnail: bool,
+    pub created_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, sqlx::FromRow)]
 pub struct CartItem {
     pub id: Uuid,
     pub store_id: Uuid,

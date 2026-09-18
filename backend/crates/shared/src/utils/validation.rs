@@ -102,3 +102,22 @@ where
         Ok(UuidPath2(a, b))
     }
 }
+
+/// Three `Uuid` path parameters, in path order (e.g.
+/// `/warehouses/{warehouse_id}/catalog/{item_id}/images/{image_id}`).
+pub struct UuidPath3(pub Uuid, pub Uuid, pub Uuid);
+
+#[async_trait]
+impl<S> FromRequestParts<S> for UuidPath3
+where
+    S: Send + Sync,
+{
+    type Rejection = AppError;
+
+    async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
+        let Path((a, b, c)) = Path::<(Uuid, Uuid, Uuid)>::from_request_parts(parts, state)
+            .await
+            .map_err(|_| AppError::BadRequest("invalid id in path".to_string()))?;
+        Ok(UuidPath3(a, b, c))
+    }
+}

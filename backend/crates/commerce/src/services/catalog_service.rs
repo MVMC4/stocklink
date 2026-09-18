@@ -3,9 +3,14 @@
 use rust_decimal::Decimal;
 use uuid::Uuid;
 
-use crate::models::catalog::{CartItem, CatalogItem};
+use crate::models::catalog::{CartItem, CatalogItem, CatalogItemImage};
 use crate::repositories::CatalogRepository;
 use stocklink_shared::errors::{AppError, AppResult};
+
+/// Storefront listings need room for a few angles of one product, but not a
+/// full gallery — five keeps upload time and review effort small for a
+/// warehouse publishing many SKUs.
+const MAX_IMAGES_PER_ITEM: usize = 5;
 
 #[derive(Clone)]
 pub struct CatalogService {
@@ -106,6 +111,129 @@ impl CatalogService {
         self.repo
             .upsert_cart_item(store_id, catalog_item_id, tier, quantity)
             .await
+    }
+
+    // ── catalogue images ─────────────────────────────────────────────────
+
+    pub async fn images_for_item(&self, item_id: Uuid) -> AppResult<Vec<CatalogItemImage>> {
+        self.repo.list_images_for_item(item_id).await
+    }
+
+    pub async fn images_for_items(&self, item_ids: &[Uuid]) -> AppResult<Vec<CatalogItemImage>> {
+        if item_ids.is_empty() {
+            return Ok(Vec::new());
+        }
+        self.repo.list_images_for_items(item_ids).await
+    }
+
+    /// Ownership is checked here (not just at the controller, which already
+    /// confirms the caller owns `warehouse_id`) because the item itself must
+    /// also belong to that warehouse — otherwise a warehouse owner could
+    /// attach, reorder or delete photos on another warehouse's listing by
+    /// guessing its id.
+    async fn owned_item(&self, warehouse_id: Uuid, item_id: Uuid) -> AppResult<CatalogItem> {
+        let item = self.get(item_id).await?;
+        if item.warehouse_id != warehouse_id {
+            return Err(AppError::NotFound("catalog item"));
+        }
+        Ok(item)
+    }
+
+    pub async fn attach_image(
+        &self,
+        warehouse_id: Uuid,
+        item_id: Uuid,
+        media_asset_id: Uuid,
+        url: &str,
+    ) -> AppResult<CatalogItemImage> {
+        self.owned_item(warehouse_id, item_id).await?;
+        if !(url.starts_with("http://") || url.starts_with("https://")) {
+            return Err(AppError::Validation {
+                field: "url".into(),
+                message: "must be an http(s) URL".into(),
+            });
+        }
+        let existing = self.repo.list_images_for_item(item_id).await?;
+        if existing.len() >= MAX_IMAGES_PER_ITEM {
+            return Err(AppError::Conflict(format!(
+                "an item can have at most {MAX_IMAGES_PER_ITEM} images"
+            )));
+        }
+        let is_first = existing.is_empty();
+        self.repo
+            .add_image(item_id, media_asset_id, url, existing.len() as i16, is_first)
+            .await
+    }
+
+    pub async fn remove_image(
+        &self,
+        warehouse_id: Uuid,
+        item_id: Uuid,
+        image_id: Uuid,
+    ) -> AppResult<()> {
+        self.owned_item(warehouse_id, item_id).await?;
+        let image = self
+            .repo
+            .find_image(image_id)
+            .await?
+            .filter(|i| i.catalog_item_id == item_id)
+            .ok_or(AppError::NotFound("image"))?;
+
+        if !self.repo.delete_image(image_id).await? {
+            return Err(AppError::NotFound("image"));
+        }
+        // Keep a listing with remaining photos from going thumbnail-less.
+        if image.is_thumbnail {
+            let remaining = self.repo.list_images_for_item(item_id).await?;
+            if let Some(next) = remaining.into_iter().min_by_key(|i| i.sort_order) {
+                self.repo.set_thumbnail(next.id).await?;
+            }
+        }
+        Ok(())
+    }
+
+    pub async fn reorder_images(
+        &self,
+        warehouse_id: Uuid,
+        item_id: Uuid,
+        ordered_ids: &[Uuid],
+    ) -> AppResult<()> {
+        self.owned_item(warehouse_id, item_id).await?;
+        let existing = self.repo.list_images_for_item(item_id).await?;
+
+        let mut existing_ids: Vec<Uuid> = existing.iter().map(|i| i.id).collect();
+        existing_ids.sort();
+        let mut given_ids = ordered_ids.to_vec();
+        given_ids.sort();
+        if existing_ids != given_ids {
+            return Err(AppError::Validation {
+                field: "image_ids".into(),
+                message: "must list exactly this item's current images, once each".into(),
+            });
+        }
+
+        for (index, id) in ordered_ids.iter().enumerate() {
+            self.repo.set_sort_order(*id, index as i16).await?;
+        }
+        Ok(())
+    }
+
+    pub async fn set_thumbnail(
+        &self,
+        warehouse_id: Uuid,
+        item_id: Uuid,
+        image_id: Uuid,
+    ) -> AppResult<()> {
+        self.owned_item(warehouse_id, item_id).await?;
+        self.repo
+            .find_image(image_id)
+            .await?
+            .filter(|i| i.catalog_item_id == item_id)
+            .ok_or(AppError::NotFound("image"))?;
+
+        self.repo.clear_thumbnail(item_id).await?;
+        self.repo.set_thumbnail(image_id).await?;
+        Ok(())
     }
 
     pub async fn cart(&self, store_id: Uuid) -> AppResult<Vec<CartItem>> {

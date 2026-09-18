@@ -3,7 +3,7 @@
 use rust_decimal::Decimal;
 use uuid::Uuid;
 
-use crate::models::catalog::{CartItem, CatalogItem};
+use crate::models::catalog::{CartItem, CatalogItem, CatalogItemImage};
 use stocklink_shared::database::DbPool;
 use stocklink_shared::errors::AppResult;
 
@@ -115,6 +115,101 @@ impl CatalogRepository {
         .execute(self.db.write())
         .await?;
         Ok(result.rows_affected() == 1)
+    }
+
+    // ── catalogue images ─────────────────────────────────────────────────
+
+    pub async fn add_image(
+        &self,
+        catalog_item_id: Uuid,
+        media_asset_id: Uuid,
+        url: &str,
+        sort_order: i16,
+        is_thumbnail: bool,
+    ) -> AppResult<CatalogItemImage> {
+        let row = sqlx::query_as::<_, CatalogItemImage>(
+            "INSERT INTO catalog_item_images \
+             (catalog_item_id, media_asset_id, url, sort_order, is_thumbnail) \
+             VALUES ($1,$2,$3,$4,$5) RETURNING *",
+        )
+        .bind(catalog_item_id)
+        .bind(media_asset_id)
+        .bind(url)
+        .bind(sort_order)
+        .bind(is_thumbnail)
+        .fetch_one(self.db.write())
+        .await?;
+        Ok(row)
+    }
+
+    pub async fn list_images_for_item(&self, catalog_item_id: Uuid) -> AppResult<Vec<CatalogItemImage>> {
+        let rows = sqlx::query_as::<_, CatalogItemImage>(
+            "SELECT * FROM catalog_item_images WHERE catalog_item_id = $1 ORDER BY sort_order",
+        )
+        .bind(catalog_item_id)
+        .fetch_all(self.db.read())
+        .await?;
+        Ok(rows)
+    }
+
+    /// Batched for list/browse views — one query for every item on the page
+    /// instead of one per row.
+    pub async fn list_images_for_items(
+        &self,
+        catalog_item_ids: &[Uuid],
+    ) -> AppResult<Vec<CatalogItemImage>> {
+        let rows = sqlx::query_as::<_, CatalogItemImage>(
+            "SELECT * FROM catalog_item_images WHERE catalog_item_id = ANY($1) \
+             ORDER BY catalog_item_id, sort_order",
+        )
+        .bind(catalog_item_ids)
+        .fetch_all(self.db.read())
+        .await?;
+        Ok(rows)
+    }
+
+    pub async fn find_image(&self, id: Uuid) -> AppResult<Option<CatalogItemImage>> {
+        let row =
+            sqlx::query_as::<_, CatalogItemImage>("SELECT * FROM catalog_item_images WHERE id = $1")
+                .bind(id)
+                .fetch_optional(self.db.read())
+                .await?;
+        Ok(row)
+    }
+
+    pub async fn delete_image(&self, id: Uuid) -> AppResult<bool> {
+        let result = sqlx::query("DELETE FROM catalog_item_images WHERE id = $1")
+            .bind(id)
+            .execute(self.db.write())
+            .await?;
+        Ok(result.rows_affected() == 1)
+    }
+
+    /// Clears every thumbnail flag for the item — always call this before
+    /// `set_thumbnail` (see the migration's partial unique index comment).
+    pub async fn clear_thumbnail(&self, catalog_item_id: Uuid) -> AppResult<()> {
+        sqlx::query("UPDATE catalog_item_images SET is_thumbnail = false WHERE catalog_item_id = $1")
+            .bind(catalog_item_id)
+            .execute(self.db.write())
+            .await?;
+        Ok(())
+    }
+
+    pub async fn set_thumbnail(&self, id: Uuid) -> AppResult<()> {
+        sqlx::query("UPDATE catalog_item_images SET is_thumbnail = true WHERE id = $1")
+            .bind(id)
+            .execute(self.db.write())
+            .await?;
+        Ok(())
+    }
+
+    pub async fn set_sort_order(&self, id: Uuid, sort_order: i16) -> AppResult<()> {
+        sqlx::query("UPDATE catalog_item_images SET sort_order = $2 WHERE id = $1")
+            .bind(id)
+            .bind(sort_order)
+            .execute(self.db.write())
+            .await?;
+        Ok(())
     }
 
     // ── cart ────────────────────────────────────────────────────────────

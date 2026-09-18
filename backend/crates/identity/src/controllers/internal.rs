@@ -18,6 +18,7 @@ pub struct WarehouseInternalRes {
     pub account_id: Uuid,
     pub name: String,
     pub region: String,
+    pub address: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -38,6 +39,7 @@ pub async fn get_warehouse(
         account_id: w.account_id,
         name: w.name,
         region: w.region,
+        address: w.address,
     }))
 }
 

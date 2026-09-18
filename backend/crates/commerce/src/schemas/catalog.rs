@@ -26,6 +26,43 @@ pub struct PublishCatalogItemReq {
 }
 
 #[derive(Debug, Serialize, ToSchema)]
+pub struct CatalogImageRes {
+    pub id: Uuid,
+    pub url: String,
+    pub sort_order: i16,
+    pub is_thumbnail: bool,
+}
+
+impl From<crate::models::catalog::CatalogItemImage> for CatalogImageRes {
+    fn from(img: crate::models::catalog::CatalogItemImage) -> Self {
+        Self {
+            id: img.id,
+            url: img.url,
+            sort_order: img.sort_order,
+            is_thumbnail: img.is_thumbnail,
+        }
+    }
+}
+
+/// Attaches an already-uploaded media asset (see the media service's
+/// `POST /v1/media/presign`) to a catalogue item as a photo. Commerce trusts
+/// the caller-supplied `url` rather than calling back to media to confirm
+/// it — see `docs/STATUS.md`'s catalogue-images entry for why that's an
+/// accepted gap for now, not an oversight.
+#[derive(Debug, Deserialize, Validate, ToSchema)]
+pub struct AttachImageReq {
+    pub media_asset_id: Uuid,
+    #[validate(length(min = 1, max = 2048))]
+    pub url: String,
+}
+
+#[derive(Debug, Deserialize, Validate, ToSchema)]
+pub struct ReorderImagesReq {
+    #[validate(length(min = 1, max = 5))]
+    pub image_ids: Vec<Uuid>,
+}
+
+#[derive(Debug, Serialize, ToSchema)]
 pub struct CatalogItemRes {
     pub id: Uuid,
     pub warehouse_id: Uuid,
@@ -41,10 +78,31 @@ pub struct CatalogItemRes {
     pub pallet_price: Option<Decimal>,
     pub stock_qty_units: Decimal,
     pub active: bool,
+    /// The thumbnail image's url if one is set, else the lowest-`sort_order`
+    /// image, else `None` — the single url a list/grid view needs without
+    /// also shipping the full `images` array to every card.
+    pub thumbnail_url: Option<String>,
+    pub images: Vec<CatalogImageRes>,
+    /// Denormalized from identity's own `warehouses` table (see
+    /// `IdentityClient::get_warehouse`) purely so a store browsing the
+    /// marketplace can see where a listing ships from without a second
+    /// round trip — commerce still treats identity as the source of truth,
+    /// this is a read-time join over the network, not a stored copy.
+    pub warehouse_name: String,
+    pub warehouse_region: String,
+    pub warehouse_address: Option<String>,
 }
 
-impl From<crate::models::catalog::CatalogItem> for CatalogItemRes {
-    fn from(item: crate::models::catalog::CatalogItem) -> Self {
+impl CatalogItemRes {
+    pub fn from_item_and_images(
+        item: crate::models::catalog::CatalogItem,
+        images: Vec<crate::models::catalog::CatalogItemImage>,
+    ) -> Self {
+        let thumbnail_url = images
+            .iter()
+            .find(|i| i.is_thumbnail)
+            .or_else(|| images.first())
+            .map(|i| i.url.clone());
         Self {
             id: item.id,
             warehouse_id: item.warehouse_id,
@@ -60,7 +118,19 @@ impl From<crate::models::catalog::CatalogItem> for CatalogItemRes {
             pallet_price: item.pallet_price,
             stock_qty_units: item.stock_qty_units,
             active: item.active,
+            thumbnail_url,
+            images: images.into_iter().map(Into::into).collect(),
+            warehouse_name: String::new(),
+            warehouse_region: String::new(),
+            warehouse_address: None,
         }
+    }
+
+    pub fn with_warehouse(mut self, name: &str, region: &str, address: Option<&str>) -> Self {
+        self.warehouse_name = name.to_string();
+        self.warehouse_region = region.to_string();
+        self.warehouse_address = address.map(str::to_string);
+        self
     }
 }
 

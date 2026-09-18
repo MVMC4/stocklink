@@ -7,7 +7,10 @@
 use utoipa::OpenApi;
 
 use crate::controllers::{catalog, orders};
-use crate::schemas::catalog::{AddToCartReq, CartItemRes, CatalogItemRes, PublishCatalogItemReq};
+use crate::schemas::catalog::{
+    AddToCartReq, AttachImageReq, CartItemRes, CatalogImageRes, CatalogItemRes,
+    PublishCatalogItemReq, ReorderImagesReq,
+};
 use crate::schemas::common::{DependencyStatus, ErrorBody, ErrorRes, ReadyRes};
 use crate::schemas::orders::{AdvanceOrderStatusReq, CheckoutReq, OrderRes};
 
@@ -17,12 +20,19 @@ use crate::schemas::orders::{AdvanceOrderStatusReq, CheckoutReq, OrderRes};
         catalog::publish_item,
         catalog::browse_catalog,
         catalog::add_to_cart,
+        catalog::attach_image,
+        catalog::remove_image,
+        catalog::reorder_images,
+        catalog::set_thumbnail,
         orders::checkout,
         orders::advance_order_status,
     ),
     components(schemas(
         PublishCatalogItemReq,
         CatalogItemRes,
+        CatalogImageRes,
+        AttachImageReq,
+        ReorderImagesReq,
         AddToCartReq,
         CartItemRes,
         CheckoutReq,

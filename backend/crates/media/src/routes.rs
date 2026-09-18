@@ -1,6 +1,6 @@
 //! Router assembly for the media service.
 
-use axum::routing::{get, post};
+use axum::routing::{get, post, put};
 use axum::Router;
 use stocklink_shared::middleware as shared_mw;
 use utoipa::OpenApi;
@@ -15,7 +15,11 @@ pub fn build_router(state: AppState) -> Router {
         .route("/health/live", get(health::live))
         .route("/health/ready", get(health::ready))
         .route("/metrics", get(health::metrics))
-        .route("/v1/media/presign", post(media::presign_upload));
+        .route("/v1/media/presign", post(media::presign_upload))
+        .route(
+            "/v1/media/local/*key",
+            put(media::upload_local).get(media::serve_local),
+        );
 
     if !state.config.env.is_production_like() {
         router =

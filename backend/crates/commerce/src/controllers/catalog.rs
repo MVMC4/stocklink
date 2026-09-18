@@ -1,15 +1,64 @@
 //! Warehouse catalogue (publish/browse) and store cart.
 
+use std::collections::{HashMap, HashSet};
+
 use axum::extract::{Query, State};
 use axum::Json;
 use serde::Deserialize;
 use uuid::Uuid;
 
-use crate::schemas::catalog::{AddToCartReq, CartItemRes, CatalogItemRes, PublishCatalogItemReq};
+use crate::clients::identity_client::WarehouseInfo;
+use crate::models::catalog::{CatalogItem, CatalogItemImage};
+use crate::schemas::catalog::{
+    AddToCartReq, AttachImageReq, CartItemRes, CatalogItemRes, PublishCatalogItemReq,
+    ReorderImagesReq,
+};
 use crate::state::AppState;
 use stocklink_shared::auth::{AuthUser, WarehouseUser};
 use stocklink_shared::errors::AppResult;
-use stocklink_shared::utils::validation::{UuidPath, ValidatedJson};
+use stocklink_shared::utils::validation::{UuidPath, UuidPath2, UuidPath3, ValidatedJson};
+
+fn with_warehouse(res: CatalogItemRes, warehouse: &WarehouseInfo) -> CatalogItemRes {
+    res.with_warehouse(&warehouse.name, &warehouse.region, warehouse.address.as_deref())
+}
+
+/// Zips items with their (already-fetched, batched) images and warehouse
+/// info — one query/lookup per distinct warehouse on the page, not one per
+/// row (see `browse_catalog`, the one caller that can span several
+/// warehouses at once).
+fn assemble(
+    items: Vec<CatalogItem>,
+    images: Vec<CatalogItemImage>,
+    warehouses: &HashMap<Uuid, WarehouseInfo>,
+) -> Vec<CatalogItemRes> {
+    let mut grouped: HashMap<Uuid, Vec<CatalogItemImage>> = HashMap::new();
+    for image in images {
+        grouped.entry(image.catalog_item_id).or_default().push(image);
+    }
+    items
+        .into_iter()
+        .map(|item| {
+            let images = grouped.remove(&item.id).unwrap_or_default();
+            let warehouse_id = item.warehouse_id;
+            let res = CatalogItemRes::from_item_and_images(item, images);
+            match warehouses.get(&warehouse_id) {
+                Some(w) => with_warehouse(res, w),
+                None => res,
+            }
+        })
+        .collect()
+}
+
+async fn respond_with_item(
+    state: &AppState,
+    item_id: Uuid,
+    warehouse: &WarehouseInfo,
+) -> AppResult<Json<CatalogItemRes>> {
+    let item = state.catalog.get(item_id).await?;
+    let images = state.catalog.images_for_item(item_id).await?;
+    let res = CatalogItemRes::from_item_and_images(item, images);
+    Ok(Json(with_warehouse(res, warehouse)))
+}
 
 #[utoipa::path(
     post,
@@ -24,7 +73,7 @@ pub async fn publish_item(
     UuidPath(warehouse_id): UuidPath,
     ValidatedJson(req): ValidatedJson<PublishCatalogItemReq>,
 ) -> AppResult<Json<CatalogItemRes>> {
-    state
+    let warehouse = state
         .identity
         .assert_owns_warehouse(user.0.account_id, warehouse_id)
         .await?;
@@ -45,7 +94,8 @@ pub async fn publish_item(
             req.stock_qty_units,
         )
         .await?;
-    Ok(Json(item.into()))
+    let res = with_warehouse(CatalogItemRes::from_item_and_images(item, Vec::new()), &warehouse);
+    Ok(Json(res))
 }
 
 pub async fn list_warehouse_catalog(
@@ -53,12 +103,107 @@ pub async fn list_warehouse_catalog(
     user: WarehouseUser,
     UuidPath(warehouse_id): UuidPath,
 ) -> AppResult<Json<Vec<CatalogItemRes>>> {
-    state
+    let warehouse = state
         .identity
         .assert_owns_warehouse(user.0.account_id, warehouse_id)
         .await?;
     let items = state.catalog.list_for_warehouse(warehouse_id).await?;
-    Ok(Json(items.into_iter().map(Into::into).collect()))
+    let ids: Vec<Uuid> = items.iter().map(|i| i.id).collect();
+    let images = state.catalog.images_for_items(&ids).await?;
+    let warehouses = HashMap::from([(warehouse_id, warehouse)]);
+    Ok(Json(assemble(items, images, &warehouses)))
+}
+
+#[utoipa::path(
+    post,
+    path = "/v1/warehouses/{warehouse_id}/catalog/{item_id}/images",
+    tag = "catalog",
+    request_body = AttachImageReq,
+    responses((status = 201, body = CatalogItemRes)),
+)]
+pub async fn attach_image(
+    State(state): State<AppState>,
+    user: WarehouseUser,
+    UuidPath2(warehouse_id, item_id): UuidPath2,
+    ValidatedJson(req): ValidatedJson<AttachImageReq>,
+) -> AppResult<Json<CatalogItemRes>> {
+    let warehouse = state
+        .identity
+        .assert_owns_warehouse(user.0.account_id, warehouse_id)
+        .await?;
+    state
+        .catalog
+        .attach_image(warehouse_id, item_id, req.media_asset_id, &req.url)
+        .await?;
+    respond_with_item(&state, item_id, &warehouse).await
+}
+
+#[utoipa::path(
+    delete,
+    path = "/v1/warehouses/{warehouse_id}/catalog/{item_id}/images/{image_id}",
+    tag = "catalog",
+    responses((status = 200, body = CatalogItemRes)),
+)]
+pub async fn remove_image(
+    State(state): State<AppState>,
+    user: WarehouseUser,
+    UuidPath3(warehouse_id, item_id, image_id): UuidPath3,
+) -> AppResult<Json<CatalogItemRes>> {
+    let warehouse = state
+        .identity
+        .assert_owns_warehouse(user.0.account_id, warehouse_id)
+        .await?;
+    state
+        .catalog
+        .remove_image(warehouse_id, item_id, image_id)
+        .await?;
+    respond_with_item(&state, item_id, &warehouse).await
+}
+
+#[utoipa::path(
+    put,
+    path = "/v1/warehouses/{warehouse_id}/catalog/{item_id}/images/order",
+    tag = "catalog",
+    request_body = ReorderImagesReq,
+    responses((status = 200, body = CatalogItemRes)),
+)]
+pub async fn reorder_images(
+    State(state): State<AppState>,
+    user: WarehouseUser,
+    UuidPath2(warehouse_id, item_id): UuidPath2,
+    ValidatedJson(req): ValidatedJson<ReorderImagesReq>,
+) -> AppResult<Json<CatalogItemRes>> {
+    let warehouse = state
+        .identity
+        .assert_owns_warehouse(user.0.account_id, warehouse_id)
+        .await?;
+    state
+        .catalog
+        .reorder_images(warehouse_id, item_id, &req.image_ids)
+        .await?;
+    respond_with_item(&state, item_id, &warehouse).await
+}
+
+#[utoipa::path(
+    put,
+    path = "/v1/warehouses/{warehouse_id}/catalog/{item_id}/images/{image_id}/thumbnail",
+    tag = "catalog",
+    responses((status = 200, body = CatalogItemRes)),
+)]
+pub async fn set_thumbnail(
+    State(state): State<AppState>,
+    user: WarehouseUser,
+    UuidPath3(warehouse_id, item_id, image_id): UuidPath3,
+) -> AppResult<Json<CatalogItemRes>> {
+    let warehouse = state
+        .identity
+        .assert_owns_warehouse(user.0.account_id, warehouse_id)
+        .await?;
+    state
+        .catalog
+        .set_thumbnail(warehouse_id, item_id, image_id)
+        .await?;
+    respond_with_item(&state, item_id, &warehouse).await
 }
 
 #[derive(Debug, Deserialize)]
@@ -77,7 +222,19 @@ pub async fn browse_catalog(
     Query(q): Query<BrowseQuery>,
 ) -> AppResult<Json<Vec<CatalogItemRes>>> {
     let items = state.catalog.browse(q.warehouse_id).await?;
-    Ok(Json(items.into_iter().map(Into::into).collect()))
+    let ids: Vec<Uuid> = items.iter().map(|i| i.id).collect();
+    let images = state.catalog.images_for_items(&ids).await?;
+
+    let distinct_warehouse_ids: HashSet<Uuid> = items.iter().map(|i| i.warehouse_id).collect();
+    let mut warehouses = HashMap::with_capacity(distinct_warehouse_ids.len());
+    for id in distinct_warehouse_ids {
+        // Best-effort: a listing whose warehouse lookup fails still shows,
+        // just without ship-from details, rather than the whole page 500ing.
+        if let Ok(info) = state.identity.get_warehouse(id).await {
+            warehouses.insert(id, info);
+        }
+    }
+    Ok(Json(assemble(items, images, &warehouses)))
 }
 
 #[utoipa::path(
