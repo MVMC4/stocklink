@@ -1,12 +1,14 @@
-/* StockLink design system — practical neo-brutalism: thick black borders,
+/* StockLink design system — practical neo-brutalism, tuned for a
+   business-facing tool rather than a consumer app: thick black borders,
    hard OFFSET shadows (never blurred, never a gradient fill), bold flat
-   accent colours, generous rounded corners. Ported from the visual
-   language actually running in the reference project's rider app (its
-   `app/globals.css` "practical neo-brutalism" section) onto StockLink's
-   sidebar+dashboard shape. No gradients anywhere — not the literal CSS
-   function, and not a blurred shape standing in for one either (see
-   AGENTS.md rule 8). Light is the only theme for now: this look is built
-   around one deliberate cream/ink palette, not a light/dark pair. */
+   accent colours, generous rounded corners — but ONE signature accent
+   (emerald) carries the "brand" weight instead of cycling a different
+   tint onto every card, and geometry is a size tighter (crisper corners,
+   shorter shadow throw) than the original pass. No gradients anywhere —
+   not the literal CSS function, and not a blurred shape standing in for
+   one either (see AGENTS.md rule 8). Light is the only *shipped* theme —
+   see the "dark mode" note in docs/HANDOFF.md for the plan to add a
+   `[data-theme="dark"]` token set and a settings screen to switch it. */
 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=DM+Mono:wght@500;600&display=swap');
 
 :root {
@@ -25,8 +27,8 @@
   --orange-soft: #fff2e9;
   --pink: #ff70b7;
   --pink-soft: #fff0f7;
-  --acid: #c9ff4a;
-  --acid-soft: #f1ffd8;
+  --acid: #34d399;
+  --acid-soft: #e8faf2;
   --ok: #16a34a;
   --ok-soft: #eefdf3;
   --warn: #b45309;
@@ -40,15 +42,17 @@
   --chip-amber: var(--orange); --chip-amber-soft: var(--orange-soft);
   --chip-teal: #0e9488; --chip-teal-soft: #eafbf8;
 
-  --radius-lg: 26px;
-  --radius: 18px;
-  --radius-sm: 12px;
-  --bw: 2px;
-  --bw-lg: 3px;
-  /* Hard offset shadows only — no blur radius, ever. */
-  --pop: 4px 4px 0 var(--ink);
-  --pop-sm: 2px 2px 0 var(--ink);
-  --pop-lg: 7px 7px 0 var(--ink);
+  --radius-lg: 16px;
+  --radius: 11px;
+  --radius-sm: 8px;
+  --bw: 1.5px;
+  --bw-lg: 2px;
+  /* Hard offset shadows only — no blur radius, ever. Shorter throw than
+     the original pass (was 4/2/7px) — reads as considered structure, not
+     a novelty/toy shadow. */
+  --pop: 3px 3px 0 var(--ink);
+  --pop-sm: 1.5px 1.5px 0 var(--ink);
+  --pop-lg: 5px 5px 0 var(--ink);
   --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
   color-scheme: light;
 }
@@ -168,10 +172,10 @@ button { cursor: pointer; }
 
 .grid { display: grid; gap: 14px; }
 .kpis { grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); }
+/* Uniform white cards, not a different tint per card — colour is reserved
+   for the icon chip and the delta, not the whole surface (see the header
+   comment on why this pass dropped the per-card tint cycling). */
 .kpi { padding: 18px; display: flex; flex-direction: column; gap: 10px; }
-.kpi:nth-child(4n+2) { background: var(--blue-soft); }
-.kpi:nth-child(4n+3) { background: var(--orange-soft); }
-.kpi:nth-child(4n+4) { background: var(--pink-soft); }
 .kpi-head { display: flex; align-items: center; justify-content: space-between; }
 .kpi .label { color: var(--muted); font-size: 12.5px; font-weight: 700; }
 .kpi .value { font-size: 27px; font-weight: 800; letter-spacing: -0.02em; }
@@ -206,8 +210,8 @@ button { cursor: pointer; }
   background: var(--blue); color: #fff; font-weight: 700; font-size: 13.5px;
   box-shadow: var(--pop); transition: transform 120ms var(--ease), box-shadow 120ms var(--ease);
 }
-.btn:hover:not(:disabled) { transform: translate(-1px, -1px); box-shadow: 5px 5px 0 var(--ink); }
-.btn:active:not(:disabled) { transform: translate(2px, 2px); box-shadow: 2px 2px 0 var(--ink); }
+.btn:hover:not(:disabled) { transform: translate(-1px, -1px); box-shadow: 4px 4px 0 var(--ink); }
+.btn:active:not(:disabled) { transform: translate(1.5px, 1.5px); box-shadow: var(--pop-sm); }
 .btn:disabled { opacity: 0.5; cursor: not-allowed; }
 .btn.ghost { background: var(--paper); color: var(--text); }
 
@@ -266,8 +270,6 @@ tbody tr:hover { background: var(--acid-soft); }
 /* ── marketplace ───────────────────────────────────────────────────────── */
 .product-grid { grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); }
 .product-card { padding: 18px; display: flex; flex-direction: column; gap: 8px; transition: transform 140ms var(--ease), box-shadow 140ms var(--ease); }
-.product-card:nth-child(3n+2) { background: var(--blue-soft); }
-.product-card:nth-child(3n+3) { background: var(--orange-soft); }
 .product-card:hover { transform: translate(-2px, -2px); box-shadow: var(--pop-lg); }
 .product-card .name { font-weight: 800; font-size: 14px; }
 .product-card .meta { color: var(--faint); font-size: 12px; font-weight: 600; }
