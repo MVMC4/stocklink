@@ -57,9 +57,13 @@ scrolling it.
 
 Real captures from the running dev stack — not mockups. See
 [`docs/ONBOARDING.md`](docs/ONBOARDING.md) for the full first-run walkthrough
-for both a warehouse and a store account. These predate the catalogue-photos
-feature above; new captures of the photo manager and listing detail view are
-still needed (tracked in `docs/HANDOFF.md`).
+for both a warehouse and a store account.
+
+![Sign in — current design](docs/assets/screenshots/14-login-professional.png)
+
+The dashboard/catalogue/marketplace captures below are from just before the
+professional-neobrutalism pass in `docs/DESIGN_SYSTEM.md` — same structure,
+the old louder palette. Still accurate for layout, not for current colours.
 
 | Warehouse dashboard | Marketplace |
 | --- | --- |
