@@ -4,12 +4,12 @@ const cards = [
   {
     href: '/docs/getting-started',
     title: 'Getting started',
-    body: 'Run the whole stack locally: prerequisites, one Docker Compose command, every port, seed data, troubleshooting.',
+    body: 'The real first-run walkthrough: signing in, registering a warehouse or store, publishing a catalogue item, checkout.',
   },
   {
     href: '/docs/architecture',
     title: 'Architecture',
-    body: 'The stack, the repository layout, the backend and frontend, the data model, events/Kafka, offline behaviour, security.',
+    body: 'The four services, what each owns, the stack, cross-service auth, and the repository layout.',
   },
   {
     href: '/docs/reference',
@@ -17,19 +17,9 @@ const cards = [
     body: 'Every endpoint, generated from the backend’s own OpenAPI document — base URLs, auth, errors, pagination, one page per resource.',
   },
   {
-    href: '/docs/operations',
-    title: 'Environments & operations',
-    body: 'Demo/dev/staging/prod, monitoring, Kubernetes, backups, platform accounts, the pilot launch checklist.',
-  },
-  {
-    href: '/docs/contracts-and-design',
-    title: 'Contracts & design',
-    body: 'The reviewed design behind the API and data model, including the proposed, not-yet-built payments design.',
-  },
-  {
-    href: '/docs/status',
-    title: 'Status & progress',
-    body: 'What exists today with evidence, the full engineering log, the acceptance matrix, and open decisions.',
+    href: '/docs/design-system',
+    title: 'Design system',
+    body: 'The neobrutalist visual language, its design tokens, why they changed, and the dark-mode plan.',
   },
 ];
 

@@ -15,4 +15,20 @@
 /** The root `/docs` landing page. */
 export const ROOT_INDEX = { src: 'docs/VISION.md', title: 'Start here' };
 
-export const SECTIONS = [];
+export const SECTIONS = [
+  {
+    slug: 'getting-started',
+    title: 'Getting started',
+    pages: [{ src: 'docs/ONBOARDING.md', slug: 'index', title: 'Getting started' }],
+  },
+  {
+    slug: 'architecture',
+    title: 'Architecture',
+    pages: [{ src: 'docs/ARCHITECTURE.md', slug: 'index', title: 'Architecture' }],
+  },
+  {
+    slug: 'design-system',
+    title: 'Design system',
+    pages: [{ src: 'docs/DESIGN_SYSTEM.md', slug: 'index', title: 'Design system' }],
+  },
+];

@@ -80,6 +80,7 @@ the old louder palette. Still accurate for layout, not for current colours.
 - [`docs/WORK_ORDERS.md`](docs/WORK_ORDERS.md) — the ordered build plan
 - [`docs/STATUS.md`](docs/STATUS.md) — evidence log, updated after every work order
 - [`docs/HANDOFF.md`](docs/HANDOFF.md) — session handoff notes for in-progress work
+- [`docs/DEMO_CREDENTIALS.md`](docs/DEMO_CREDENTIALS.md) — dev sign-in accounts, every URL, the full API surface
 - [`AGENTS.md`](AGENTS.md) — execution contract for anyone working in this repository
 
 ## Architecture

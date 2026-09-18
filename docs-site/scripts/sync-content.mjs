@@ -83,7 +83,18 @@ function toFrontmatterDoc(raw, fallbackTitle, titleOverride) {
     start = h1 + 1;
   }
   if (titleOverride) title = titleOverride;
-  const body = lines.slice(start).join('\n').trim();
+  // Image paths in docs/*.md are relative to docs/assets/... — once copied
+  // into content/docs/**, that relative path no longer resolves, and
+  // Next.js's MDX loader treats a still-relative image src as a webpack
+  // import, failing the build outright ("module not found") rather than
+  // just rendering a broken image. docs-site/public/screenshots/ carries a
+  // copy of the same files (see docs-site/README.md), reachable at this
+  // absolute path regardless of which page references it.
+  const body = lines
+    .slice(start)
+    .join('\n')
+    .replace(/\]\(assets\/screenshots\//g, '](/screenshots/')
+    .trim();
   const firstPara =
     body
       .split('\n\n')
