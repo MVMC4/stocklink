@@ -4,13 +4,15 @@ StockLink connects **warehouses** to **retail stores**, turns scattered store
 demand into **consolidated bulk orders**, and follows every shipment with
 **live parcel tracking**.
 
-Warehouses publish server-priced stock (unit, case, pallet tiers). Stores
-browse and order across many warehouses from one cart, with prices and
-totals always computed server-side. Compatible store demand for the same
-product and route is pooled into consolidated bulk orders, giving stores
-volume pricing and warehouses plannable, larger orders, while each store
-keeps its own allocation, invoice and delivery. Every shipment carries a
-tracking reference, milestones, a live position and proof of delivery.
+Warehouses publish server-priced stock (unit, case, pallet tiers) with up to
+five photos per listing. Stores browse and order across many warehouses from
+one cart, with prices and totals always computed server-side, and can open
+any listing for its full photo gallery, description and price tiers.
+Compatible store demand for the same product and route is pooled into
+consolidated bulk orders, giving stores volume pricing and warehouses
+plannable, larger orders, while each store keeps its own allocation, invoice
+and delivery. Every shipment carries a tracking reference, milestones, a
+live position and proof of delivery.
 
 ## Status
 
@@ -19,6 +21,30 @@ web app runs against all four end-to-end, and the docs site builds and
 serves from the repository's own Markdown. See [`docs/STATUS.md`](docs/STATUS.md)
 for the work-order-by-work-order evidence log — what's been built, how it
 was verified, and what's honestly still missing.
+
+**Recently added:** catalogue item photos — up to 5 per listing, one marked
+as the thumbnail, reorderable, with a full gallery in the marketplace's
+listing detail view. See [`docs/HANDOFF.md`](docs/HANDOFF.md) for exactly
+what shipped, what's verified, and what's still open on that work.
+
+## Planned features
+
+Not built yet, in the order they're planned (see
+[`docs/WORK_ORDERS.md`](docs/WORK_ORDERS.md) for the full spec of each):
+
+- **Bulk order board & settlements UI** — the data model already exists
+  (`BulkOrder`, `BulkOrderAllocation`, `Settlement`, `LedgerEntry` in
+  `commerce`); there's no screen for either yet.
+- **Parcel tracking** — shipments, carrier assignment, milestones, live
+  position, proof of delivery, and a public tracking page by unguessable
+  reference. Nothing beyond the carrier onboarding role exists today.
+- **Assistant layer** — command palette actions, rule-based suggestions
+  over real data (pooling opportunities, low stock), each labelled with its
+  reasoning; an optional LLM integration behind a feature flag.
+- **Real "distance from warehouse."** Warehouses and stores currently carry
+  a region and a free-text address, not a geocoordinate — the marketplace
+  shows real ship-from region/address today rather than a fabricated
+  distance figure.
 
 ## Design
 
@@ -31,7 +57,9 @@ scrolling it.
 
 Real captures from the running dev stack — not mockups. See
 [`docs/ONBOARDING.md`](docs/ONBOARDING.md) for the full first-run walkthrough
-for both a warehouse and a store account.
+for both a warehouse and a store account. These predate the catalogue-photos
+feature above; new captures of the photo manager and listing detail view are
+still needed (tracked in `docs/HANDOFF.md`).
 
 | Warehouse dashboard | Marketplace |
 | --- | --- |
@@ -47,6 +75,7 @@ for both a warehouse and a store account.
 - [`docs/ONBOARDING.md`](docs/ONBOARDING.md) — first-run guide with screenshots
 - [`docs/WORK_ORDERS.md`](docs/WORK_ORDERS.md) — the ordered build plan
 - [`docs/STATUS.md`](docs/STATUS.md) — evidence log, updated after every work order
+- [`docs/HANDOFF.md`](docs/HANDOFF.md) — session handoff notes for in-progress work
 - [`AGENTS.md`](AGENTS.md) — execution contract for anyone working in this repository
 
 ## Architecture
@@ -60,7 +89,7 @@ behind one nginx gateway — split by domain, not by table (see
 | `identity` | accounts, OTP auth, onboarding (warehouse/store/carrier), admin console |
 | `commerce` | catalogue, cart, checkout, bulk order consolidation, settlements, ledger |
 | `notifications` | in-app inbox, push (FCM) |
-| `media` | presigned uploads |
+| `media` | presigned uploads (S3 in production; a local-disk backend in dev) |
 
 | Layer | Technology |
 | --- | --- |
