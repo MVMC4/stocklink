@@ -39,10 +39,28 @@ export const api = {
   get: <T>(path: string) => request<T>(path),
   post: <T>(path: string, data?: unknown) =>
     request<T>(path, { method: 'POST', body: data !== undefined ? JSON.stringify(data) : undefined }),
+  put: <T>(path: string, data?: unknown) =>
+    request<T>(path, { method: 'PUT', body: data !== undefined ? JSON.stringify(data) : undefined }),
   patch: <T>(path: string, data?: unknown) =>
     request<T>(path, { method: 'PATCH', body: data !== undefined ? JSON.stringify(data) : undefined }),
   delete: <T>(path: string) => request<T>(path, { method: 'DELETE' }),
 };
+
+/** Uploads raw file bytes to a presigned (or, in dev, local-backend) upload
+ *  url returned by `POST /v1/media/presign` — a plain PUT of the file body,
+ *  never through the JSON `request()` wrapper above, and never carrying the
+ *  session cookie (the s3 backend's presigned url isn't same-origin, and the
+ *  dev local backend re-derives the account from the path it already signed
+ *  server-side, not from a cookie). */
+export async function uploadFile(uploadUrl: string, file: File): Promise<void> {
+  const res = await fetch(uploadUrl, {
+    method: 'PUT',
+    credentials: 'include',
+    headers: { 'Content-Type': file.type || 'application/octet-stream' },
+    body: file,
+  });
+  if (!res.ok) throw new ApiError(res.status, 'UPLOAD_FAILED', 'Could not upload the file');
+}
 
 // ── types (mirror backend/crates/*/src/schemas) ────────────────────────────
 
@@ -71,6 +89,15 @@ export interface Store {
 
 export type Tier = 'unit' | 'case' | 'pallet';
 
+export const MAX_CATALOG_IMAGES = 5;
+
+export interface CatalogImage {
+  id: string;
+  url: string;
+  sort_order: number;
+  is_thumbnail: boolean;
+}
+
 export interface CatalogItem {
   id: string;
   warehouse_id: string;
@@ -86,6 +113,29 @@ export interface CatalogItem {
   pallet_price: number | null;
   stock_qty_units: number;
   active: boolean;
+  thumbnail_url: string | null;
+  images: CatalogImage[];
+  warehouse_name: string;
+  warehouse_region: string;
+  warehouse_address: string | null;
+}
+
+/** Presigns, uploads and attaches one photo to a catalogue item — the three
+ *  calls every "add a photo" button makes, in order. */
+export async function uploadCatalogImage(
+  warehouseId: string,
+  itemId: string,
+  file: File,
+): Promise<CatalogItem> {
+  const presigned = await api.post<{ media_asset_id: string; upload_url: string; public_url: string }>(
+    '/v1/media/presign',
+    { kind: 'catalog_item', content_type: file.type || 'application/octet-stream' },
+  );
+  await uploadFile(presigned.upload_url, file);
+  return api.post<CatalogItem>(`/v1/warehouses/${warehouseId}/catalog/${itemId}/images`, {
+    media_asset_id: presigned.media_asset_id,
+    url: presigned.public_url,
+  });
 }
 
 export interface CartItem {

@@ -1,7 +1,19 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { AlertCircle, Boxes, Package, Plus, TrendingUp, Warehouse as WarehouseIcon, X } from 'lucide-react';
-import { api, type CatalogItem, type Order } from '../lib/api';
+import {
+  AlertCircle,
+  Boxes,
+  ChevronLeft,
+  ChevronRight,
+  Image as ImageIcon,
+  Package,
+  Plus,
+  Star,
+  TrendingUp,
+  Warehouse as WarehouseIcon,
+  X,
+} from 'lucide-react';
+import { api, uploadCatalogImage, MAX_CATALOG_IMAGES, type CatalogItem, type Order } from '../lib/api';
 import { useMyWarehouse } from '../lib/hooks';
 import { useToast } from '../lib/toast';
 import { CardSkeleton, EmptyState, InfoTip, KpiSkeleton, Sparkline, StatusPill } from '../components/ui';
@@ -138,11 +150,179 @@ function NoWarehouse() {
   );
 }
 
+/** Up to `MAX_CATALOG_IMAGES` photos for one catalogue item: upload, pick a
+ *  thumbnail, reorder, remove. Every action round-trips through the API and
+ *  replaces the whole item (images included) via `onChange` — there's no
+ *  local reordering state to keep in sync with the server. */
+function ImageManager({
+  warehouseId,
+  item,
+  onClose,
+  onChange,
+}: {
+  warehouseId: string;
+  item: CatalogItem;
+  onClose: () => void;
+  onChange: (item: CatalogItem) => void;
+}) {
+  const { push } = useToast();
+  const [uploading, setUploading] = useState(false);
+  const images = [...item.images].sort((a, b) => a.sort_order - b.sort_order);
+
+  async function handleFile(file: File) {
+    setUploading(true);
+    try {
+      onChange(await uploadCatalogImage(warehouseId, item.id, file));
+    } catch {
+      push('Could not upload photo', 'error');
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  async function move(imageId: string, direction: -1 | 1) {
+    const ids = images.map((i) => i.id);
+    const from = ids.indexOf(imageId);
+    const to = from + direction;
+    if (to < 0 || to >= ids.length) return;
+    [ids[from], ids[to]] = [ids[to], ids[from]];
+    try {
+      onChange(
+        await api.put<CatalogItem>(`/v1/warehouses/${warehouseId}/catalog/${item.id}/images/order`, {
+          image_ids: ids,
+        }),
+      );
+    } catch {
+      push('Could not reorder photos', 'error');
+    }
+  }
+
+  async function setThumbnail(imageId: string) {
+    try {
+      onChange(
+        await api.put<CatalogItem>(
+          `/v1/warehouses/${warehouseId}/catalog/${item.id}/images/${imageId}/thumbnail`,
+        ),
+      );
+    } catch {
+      push('Could not set thumbnail', 'error');
+    }
+  }
+
+  async function remove(imageId: string) {
+    try {
+      onChange(
+        await api.delete<CatalogItem>(`/v1/warehouses/${warehouseId}/catalog/${item.id}/images/${imageId}`),
+      );
+    } catch {
+      push('Could not remove photo', 'error');
+    }
+  }
+
+  const iconBtnStyle = {
+    padding: 3,
+    borderRadius: 8,
+    border: '1.5px solid var(--ink)',
+    background: 'var(--card)',
+    display: 'grid',
+    placeItems: 'center',
+  } as const;
+
+  return (
+    <div className="palette-scrim" onClick={onClose}>
+      <div
+        className="glass pop palette"
+        style={{ padding: 22, width: 'min(560px, calc(100vw - 32px))' }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+          <h1 style={{ fontSize: 16, margin: 0 }}>Photos — {item.name}</h1>
+          <button className="btn ghost" style={{ padding: 6 }} onClick={onClose} aria-label="Close">
+            <X size={14} />
+          </button>
+        </div>
+        <p style={{ margin: '0 0 14px', fontSize: 12.5, color: 'var(--muted)' }}>
+          Up to {MAX_CATALOG_IMAGES} photos. The starred one is the thumbnail stores see first.
+        </p>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(96px, 1fr))', gap: 10, marginBottom: 16 }}>
+          {images.map((img, i) => (
+            <div
+              key={img.id}
+              style={{
+                position: 'relative',
+                border: 'var(--bw) solid var(--ink)',
+                borderRadius: 'var(--radius-sm)',
+                overflow: 'hidden',
+                aspectRatio: '1',
+                background: 'var(--card)',
+              }}
+            >
+              <img src={img.url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+              <button
+                type="button"
+                onClick={() => setThumbnail(img.id)}
+                title={img.is_thumbnail ? 'Thumbnail' : 'Set as thumbnail'}
+                style={{ ...iconBtnStyle, position: 'absolute', top: 4, left: 4, background: img.is_thumbnail ? 'var(--acid)' : 'var(--card)' }}
+              >
+                <Star size={11} fill={img.is_thumbnail ? 'var(--ink)' : 'none'} />
+              </button>
+              <button type="button" onClick={() => remove(img.id)} title="Remove photo" style={{ ...iconBtnStyle, position: 'absolute', top: 4, right: 4 }}>
+                <X size={11} />
+              </button>
+              <div style={{ position: 'absolute', bottom: 4, left: 4, right: 4, display: 'flex', justifyContent: 'space-between' }}>
+                <button type="button" onClick={() => move(img.id, -1)} disabled={i === 0} title="Move earlier" style={iconBtnStyle}>
+                  <ChevronLeft size={11} />
+                </button>
+                <button type="button" onClick={() => move(img.id, 1)} disabled={i === images.length - 1} title="Move later" style={iconBtnStyle}>
+                  <ChevronRight size={11} />
+                </button>
+              </div>
+            </div>
+          ))}
+          {images.length < MAX_CATALOG_IMAGES && (
+            <label
+              style={{
+                display: 'grid',
+                placeItems: 'center',
+                aspectRatio: '1',
+                border: 'var(--bw) dashed var(--ink)',
+                borderRadius: 'var(--radius-sm)',
+                cursor: uploading ? 'wait' : 'pointer',
+                color: 'var(--muted)',
+              }}
+            >
+              {uploading ? <span style={{ fontSize: 11 }}>Uploading…</span> : <Plus size={18} />}
+              <input
+                type="file"
+                accept="image/*"
+                style={{ display: 'none' }}
+                disabled={uploading}
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  e.target.value = '';
+                  if (file) handleFile(file);
+                }}
+              />
+            </label>
+          )}
+        </div>
+        <div className="form-actions">
+          <button className="btn" type="button" onClick={onClose}>
+            Done
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function CatalogScreen() {
   const { data: warehouse } = useMyWarehouse();
   const qc = useQueryClient();
   const { push } = useToast();
   const [showForm, setShowForm] = useState(false);
+  const [managingImagesFor, setManagingImagesFor] = useState<CatalogItem | null>(null);
 
   const { data: items, isLoading: loadingItems } = useQuery({
     queryKey: ['catalog', warehouse?.id],
@@ -153,13 +333,21 @@ export function CatalogScreen() {
   const publish = useMutation({
     mutationFn: (payload: Record<string, unknown>) =>
       api.post<CatalogItem>(`/v1/warehouses/${warehouse!.id}/catalog`, payload),
-    onSuccess: () => {
+    onSuccess: (created) => {
       qc.invalidateQueries({ queryKey: ['catalog', warehouse?.id] });
-      push('Item published');
+      push('Item published — add some photos below');
       setShowForm(false);
+      setManagingImagesFor(created);
     },
     onError: () => push('Could not publish item', 'error'),
   });
+
+  function onImagesChanged(updated: CatalogItem) {
+    setManagingImagesFor(updated);
+    qc.setQueryData<CatalogItem[]>(['catalog', warehouse?.id], (items) =>
+      items?.map((i) => (i.id === updated.id ? updated : i)),
+    );
+  }
 
   if (!warehouse) return <NoWarehouse />;
 
@@ -249,17 +437,32 @@ export function CatalogScreen() {
           <table>
             <thead>
               <tr>
+                <th></th>
                 <th>SKU</th>
                 <th>Name</th>
                 <th>Unit price</th>
                 <th>Case price</th>
                 <th>Stock</th>
                 <th>Status</th>
+                <th></th>
               </tr>
             </thead>
             <tbody>
               {items.map((item) => (
                 <tr key={item.id}>
+                  <td style={{ width: 40 }}>
+                    {item.thumbnail_url ? (
+                      <img
+                        src={item.thumbnail_url}
+                        alt=""
+                        style={{ width: 32, height: 32, borderRadius: 8, objectFit: 'cover', border: '1.5px solid var(--ink)', display: 'block' }}
+                      />
+                    ) : (
+                      <div className="icon-chip c0" style={{ width: 32, height: 32 }}>
+                        <ImageIcon size={14} />
+                      </div>
+                    )}
+                  </td>
                   <td>{item.sku}</td>
                   <td>{item.name}</td>
                   <td>
@@ -270,12 +473,26 @@ export function CatalogScreen() {
                   <td>
                     <span className={`pill ${item.active ? 'ok' : ''}`}>{item.active ? 'Active' : 'Inactive'}</span>
                   </td>
+                  <td style={{ textAlign: 'right' }}>
+                    <button className="btn ghost" onClick={() => setManagingImagesFor(item)}>
+                      Photos ({item.images.length}/{MAX_CATALOG_IMAGES})
+                    </button>
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
         )}
       </div>
+
+      {managingImagesFor && warehouse && (
+        <ImageManager
+          warehouseId={warehouse.id}
+          item={managingImagesFor}
+          onClose={() => setManagingImagesFor(null)}
+          onChange={onImagesChanged}
+        />
+      )}
     </div>
   );
 }
